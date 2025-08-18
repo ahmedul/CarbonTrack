@@ -66,10 +66,11 @@ Each feature is considered **done** when:
 
 ```mermaid
 flowchart TD
-  A[User Browser] -->|Login/Register| B[AWS Cognito]
-  A -->|API Calls| C[API Gateway]
-  C --> D[Lambda (Python Backend)]
-  D --> E[(DynamoDB - Carbon Data)]
-  D --> F[(S3 - Reports/Static Assets)]
-  A -->|Dashboard| G[Vue.js Frontend (S3+CloudFront)]
+  A["User Browser"] -->|Login/Register| B["AWS Cognito"]
+  A -->|API Calls| C["API Gateway"]
+  C --> D["Lambda (Python Backend)"]
+  D --> E["DynamoDB (Carbon Data)"]
+  D --> F["S3 (Reports & Static Assets)"]
+  A -->|Dashboard| G["Vue.js Frontend (S3 + CloudFront)"]
+
 
