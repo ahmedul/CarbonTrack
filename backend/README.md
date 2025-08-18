@@ -151,34 +151,50 @@ The API will be available at:
 
 ## 🔐 Authentication
 
-The API uses AWS Cognito for user management and JWT tokens for authentication.
+The API uses JWT-based authentication with AWS Cognito integration.
 
-### Environment Variables
+### Development Mode
 
-```bash
-# AWS Configuration
-AWS_REGION=us-east-1
-AWS_ACCESS_KEY_ID=your_access_key
-AWS_SECRET_ACCESS_KEY=your_secret_key
+In development, mock authentication is used by default. You can test endpoints with these tokens:
+- `mock_jwt_token` - Regular user
+- `mock_admin` - Admin user  
+- Any token starting with `mock_` - Creates a test user
 
-# Cognito Configuration
-COGNITO_USER_POOL_ID=us-east-1_XXXXXXXXX
-COGNITO_CLIENT_ID=your_client_id
-COGNITO_CLIENT_SECRET=your_client_secret
+### Production Setup
 
-# JWT Configuration
-JWT_SECRET_KEY=your_super_secret_jwt_key_change_in_production
-JWT_ALGORITHM=HS256
-JWT_EXPIRATION_HOURS=24
-```
+For production with real AWS Cognito:
 
-### Protected Endpoints
+1. **Set up AWS Cognito infrastructure:**
+   ```bash
+   cd infra
+   ./setup-cognito.sh
+   ```
 
-Most endpoints require authentication. Include the JWT token in the Authorization header:
+2. **Update environment variables:**
+   ```bash
+   # Copy generated config to .env
+   cp aws-cognito-config.txt .env.cognito
+   # Update .env with real values
+   ```
 
-```bash
-Authorization: Bearer <your_jwt_token>
-```
+3. **Configure credentials in `.env`:**
+   ```bash
+   DEBUG=False
+   COGNITO_USER_POOL_ID=us-east-1_RealPoolID
+   COGNITO_CLIENT_ID=RealClientID  
+   COGNITO_CLIENT_SECRET=RealClientSecret
+   AWS_ACCESS_KEY_ID=YourAccessKey
+   AWS_SECRET_ACCESS_KEY=YourSecretKey
+   ```
+
+4. **Test authentication:**
+   ```bash
+   ./scripts/test-auth.sh
+   ```
+
+### AWS Cognito Setup
+
+For detailed AWS Cognito setup instructions, see: [AWS Cognito Setup Guide](../infra/AWS_COGNITO_SETUP.md)
 
 ## 🛠 Development
 

@@ -14,7 +14,7 @@ RED='\033[0;31m'
 NC='\033[0m' # No Color
 
 # Check if virtual environment exists
-if [ ! -d ".venv" ] && [ ! -d "venv" ]; then
+if [ ! -d ".venv" ]; then
     echo -e "${YELLOW}⚠️  Virtual environment not found. Creating one...${NC}"
     python -m venv .venv
     echo -e "${GREEN}✅ Virtual environment created${NC}"
@@ -22,11 +22,7 @@ fi
 
 # Activate virtual environment
 echo -e "${BLUE}🔧 Activating virtual environment...${NC}"
-if [ -d ".venv" ]; then
-    source .venv/bin/activate
-elif [ -d "venv" ]; then
-    source venv/bin/activate
-fi
+source .venv/bin/activate
 
 # Install/upgrade dependencies
 echo -e "${BLUE}📦 Installing dependencies...${NC}"
