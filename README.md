@@ -18,19 +18,13 @@ It is designed to showcase **cloud-native architecture on AWS** and has the pote
 
 ## 🛠️ Tech Stack
 
-**Frontend:**  
-- Vue.js (hosted on S3 + CloudFront)  
-
-**Backend:**  
-- Python (FastAPI / AWS Lambda)  
-- API Gateway for routing  
-
-**Infrastructure & DevOps:**  
-- AWS Cognito (Auth)  
-- DynamoDB (Carbon data storage)  
-- S3 (static hosting & reports)  
-- CloudFront (CDN)  
-- CodePipeline + CodeBuild (CI/CD)  
+- **Frontend:** Vue.js (S3 + CloudFront hosting)  
+- **Backend:** Python (FastAPI, AWS Lambda, API Gateway)  
+- **Database:** DynamoDB (NoSQL)  
+- **Storage:** S3 (static files, reports)  
+- **Auth:** Cognito (user management)  
+- **CI/CD:** GitHub Actions → CodePipeline  
+- **Infra:** AWS SAM / CDK (optional)  
 
 ---
 
