@@ -1,0 +1,10 @@
+# AWS Cognito Configuration for CarbonTrack
+# Generated on Mi 20. Aug 19:08:14 CEST 2025
+
+AWS_REGION=eu-central-1
+COGNITO_USER_POOL_ID=eu-central-1_liszdknXy
+COGNITO_CLIENT_ID=3rg58gvke8v6afmfng7o4fk0r1
+COGNITO_CLIENT_SECRET=192sju21i9d0k9jhfn6g68cco7ib2vnu047583kbkos8f9c6bd8h
+COGNITO_DOMAIN=carbontrack-1755709693.auth.eu-central-1.amazoncognito.com
+
+# Copy these values to your .env file

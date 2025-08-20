@@ -17,7 +17,7 @@ NC='\033[0m' # No Color
 # Configuration
 POOL_NAME="CarbonTrack-Users"
 CLIENT_NAME="CarbonTrack-Client"
-REGION="us-east-1"
+REGION="eu-central-1"
 
 # Check if AWS CLI is configured
 if ! aws sts get-caller-identity > /dev/null 2>&1; then
@@ -46,8 +46,8 @@ USER_POOL_OUTPUT=$(aws cognito-idp create-user-pool \
     --username-attributes email \
     --verification-message-template '{
         "DefaultEmailOption": "CONFIRM_WITH_CODE",
-        "DefaultEmailSubject": "Welcome to CarbonTrack - Verify your email",
-        "DefaultEmailMessage": "Welcome to CarbonTrack! Your verification code is {####}"
+        "EmailSubject": "Welcome to CarbonTrack - Verify your email",
+        "EmailMessage": "Welcome to CarbonTrack! Your verification code is {####}"
     }' \
     --admin-create-user-config '{
         "AllowAdminCreateUserOnly": false,
@@ -68,7 +68,7 @@ CLIENT_OUTPUT=$(aws cognito-idp create-user-pool-client \
     --user-pool-id "$USER_POOL_ID" \
     --client-name "$CLIENT_NAME" \
     --generate-secret \
-    --explicit-auth-flows ADMIN_NO_SRP_AUTH ALLOW_USER_PASSWORD_AUTH ALLOW_REFRESH_TOKEN_AUTH \
+    --explicit-auth-flows ALLOW_ADMIN_USER_PASSWORD_AUTH ALLOW_USER_PASSWORD_AUTH ALLOW_REFRESH_TOKEN_AUTH \
     --supported-identity-providers COGNITO \
     --read-attributes email \
     --write-attributes email \
