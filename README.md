@@ -31,9 +31,9 @@ It is designed to showcase **cloud-native architecture on AWS** and has the pote
 ## 📂 Project Roadmap
 
 ### ✅ Phase 1 (Backend Basics)
-- [✅ ] Set up AWS Cognito authentication  
-- [✅ ] Create user registration + login API (Python, Lambda, API Gateway)  
-- [ ] Define DynamoDB schema for users + carbon data  
+- [✅] Set up AWS Cognito authentication  
+- [✅] Create user registration + login API (Python, Lambda, API Gateway)  
+- [✅] Define DynamoDB schema for users + carbon data  
 
 ### 🚧 Phase 2 (Frontend + Integration)
 - [ ] Deploy Vue.js frontend on S3 + CloudFront  
