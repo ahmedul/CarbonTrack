@@ -1,18 +1,18 @@
-"""
-Carbon tracking API routes
-"""
+"""Carbon tracking API routes"""
 
-from fastapi import APIRouter, Depends, status, Query
+from fastapi import APIRouter, Depends, status, Query, HTTPException
 from typing import Dict, Any, List, Optional
 from datetime import date
+from decimal import Decimal
 
 from app.schemas.carbon import (
     CarbonEmissionCreate,
     CarbonEmissionUpdate,
-    GoalCreate,
     EmissionCategory
 )
 from app.core.middleware import get_current_user
+from app.services.dynamodb_service import dynamodb_service
+from app.models.dynamodb_models import CarbonEmissionModel
 
 router = APIRouter(prefix="/carbon-emissions", tags=["Carbon Tracking"])
 
@@ -22,7 +22,8 @@ async def get_carbon_emissions(
     current_user: Dict[str, Any] = Depends(get_current_user),
     category: Optional[EmissionCategory] = Query(None, description="Filter by category"),
     start_date: Optional[date] = Query(None, description="Start date filter"),
-    end_date: Optional[date] = Query(None, description="End date filter")
+    end_date: Optional[date] = Query(None, description="End date filter"),
+    limit: int = Query(50, description="Maximum number of entries to return")
 ):
     """
     Get user's carbon emissions with optional filtering
@@ -30,23 +31,33 @@ async def get_carbon_emissions(
     - **category**: Optional category filter
     - **start_date**: Optional start date filter
     - **end_date**: Optional end date filter
+    - **limit**: Maximum number of entries to return
     """
-    # Mock response for now - replace with actual database implementation
-    return [
-        {
-            "id": "emission_1",
-            "user_id": current_user.get("user_id", "mock_user"),
-            "date": "2024-01-15",
-            "category": "transportation",
-            "activity": "car_drive",
-            "amount": 25.5,
-            "unit": "km",
-            "description": "Daily commute to office",
-            "co2_equivalent": 5.1,
-            "created_at": "2024-01-15T08:00:00Z",
-            "updated_at": "2024-01-15T08:00:00Z"
-        }
-    ]
+    try:
+        user_id = current_user.get("user_id")
+        if not user_id:
+            raise HTTPException(status_code=401, detail="User ID not found")
+        
+        # Convert dates to ISO strings if provided
+        start_date_str = start_date.isoformat() if start_date else None
+        end_date_str = end_date.isoformat() if end_date else None
+        
+        # Get emissions from DynamoDB
+        emissions = await dynamodb_service.get_user_emissions(
+            user_id=user_id,
+            start_date=start_date_str,
+            end_date=end_date_str,
+            limit=limit
+        )
+        
+        # Filter by category if specified
+        if category:
+            emissions = [e for e in emissions if e.get('category') == category.value]
+        
+        return emissions
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving emissions: {str(e)}")
 
 
 @router.post("/", response_model=Dict[str, Any], status_code=status.HTTP_201_CREATED)
@@ -64,47 +75,125 @@ async def create_carbon_emission(
     - **unit**: Unit of measurement (km, kWh, etc.)
     - **description**: Optional description
     """
-    # Mock response - replace with actual database implementation
-    return {
-        "id": "new_emission_id",
-        "user_id": current_user.get("user_id", "mock_user"),
-        "message": "Carbon emission recorded successfully",
-        **emission_data.dict()
-    }
+    try:
+        user_id = current_user.get("user_id")
+        if not user_id:
+            raise HTTPException(status_code=401, detail="User ID not found")
+        
+        # Calculate CO2 equivalent (simple calculation - can be enhanced)
+        co2_equivalent = Decimal(str(emission_data.amount * 0.2))  # Basic emission factor
+        
+        # Create CarbonEmissionModel
+        carbon_emission = CarbonEmissionModel(
+            user_id=user_id,
+            date=emission_data.date,
+            category=emission_data.category.value,
+            activity=emission_data.activity,
+            amount=Decimal(str(emission_data.amount)),
+            unit=emission_data.unit,
+            description=emission_data.description,
+            co2_equivalent=co2_equivalent,
+            emission_factor=Decimal('0.2')  # Basic factor
+        )
+        
+        # Save to DynamoDB
+        result = await dynamodb_service.create_carbon_emission(carbon_emission)
+        
+        if result.get("success"):
+            return {
+                "id": result["entry_id"],
+                "user_id": user_id,
+                "message": "Carbon emission recorded successfully",
+                "co2_equivalent": float(co2_equivalent),
+                **emission_data.dict()
+            }
+        else:
+            raise HTTPException(status_code=500, detail=result.get("error", "Failed to create emission"))
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error creating emission: {str(e)}")
 
 
-@router.put("/{emission_id}", response_model=Dict[str, Any])
+@router.put("/{timestamp}", response_model=Dict[str, Any])
 async def update_carbon_emission(
-    emission_id: str,
+    timestamp: str,
     emission_data: CarbonEmissionUpdate,
     current_user: Dict[str, Any] = Depends(get_current_user)
 ):
     """
-    Update an existing carbon emission entry
+    Update an existing carbon emission entry by timestamp
     
-    Only the owner of the emission can update it
+    Only the owner of the emission can update it.
+    Use the timestamp from the entry as the ID.
     """
-    # Mock response - replace with actual database implementation
-    return {
-        "id": emission_id,
-        "user_id": current_user.get("user_id", "mock_user"),
-        "message": "Carbon emission updated successfully",
-        **{k: v for k, v in emission_data.dict().items() if v is not None}
-    }
+    try:
+        user_id = current_user.get("user_id")
+        if not user_id:
+            raise HTTPException(status_code=401, detail="User ID not found")
+        
+        # Prepare updates dictionary
+        updates = {}
+        for field, value in emission_data.dict().items():
+            if value is not None:
+                if field == "amount" and value is not None:
+                    updates[field] = Decimal(str(value))
+                    # Recalculate CO2 equivalent if amount changes
+                    updates["co2_equivalent"] = Decimal(str(value * 0.2))
+                elif field == "category" and value is not None:
+                    updates[field] = value.value if hasattr(value, 'value') else str(value)
+                else:
+                    updates[field] = value
+        
+        if not updates:
+            raise HTTPException(status_code=400, detail="No valid fields to update")
+        
+        # Update in DynamoDB
+        success = await dynamodb_service.update_carbon_emission(user_id, timestamp, updates)
+        
+        if not success:
+            raise HTTPException(status_code=404, detail="Emission not found or could not be updated")
+        
+        return {
+            "timestamp": timestamp,
+            "user_id": user_id,
+            "message": "Carbon emission updated successfully",
+            **{k: (float(v) if isinstance(v, Decimal) else v) for k, v in updates.items()}
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error updating emission: {str(e)}")
 
 
-@router.delete("/{emission_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{timestamp}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_carbon_emission(
-    emission_id: str,
+    timestamp: str,
     current_user: Dict[str, Any] = Depends(get_current_user)
 ):
     """
-    Delete a carbon emission entry
+    Delete a carbon emission entry by timestamp
     
-    Only the owner of the emission can delete it
+    Only the owner of the emission can delete it.
+    Use the timestamp from the entry as the ID.
     """
-    # Mock implementation - replace with actual database implementation
-    pass
+    try:
+        user_id = current_user.get("user_id")
+        if not user_id:
+            raise HTTPException(status_code=401, detail="User ID not found")
+        
+        # Delete from DynamoDB
+        success = await dynamodb_service.delete_carbon_emission(user_id, timestamp)
+        
+        if not success:
+            raise HTTPException(status_code=404, detail="Emission not found or could not be deleted")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error deleting emission: {str(e)}")
 
 
 @router.get("/analytics", response_model=Dict[str, Any])
@@ -121,93 +210,23 @@ async def get_analytics(
     - **end_date**: End date for analytics
     - **category**: Optional category filter
     """
-    # Mock response - replace with actual analytics calculation
-    return {
-        "total_emissions": 125.5,
-        "emissions_by_category": {
-            "transportation": 75.2,
-            "energy": 30.1,
-            "food": 15.8,
-            "other": 4.4
-        },
-        "emissions_by_month": {
-            "2024-01": 45.2,
-            "2024-02": 38.7,
-            "2024-03": 41.6
-        },
-        "average_daily_emissions": 4.18,
-        "reduction_from_previous_period": 12.5,
-        "period_start": start_date,
-        "period_end": end_date
-    }
-
-
-# Goals endpoints
-goals_router = APIRouter(prefix="/goals", tags=["Goals"])
-
-
-@goals_router.get("/", response_model=List[Dict[str, Any]])
-async def get_goals(current_user: Dict[str, Any] = Depends(get_current_user)):
-    """Get user's carbon reduction goals"""
-    # Mock response
-    return [
-        {
-            "id": "goal_1",
-            "user_id": current_user.get("user_id", "mock_user"),
-            "title": "Reduce Transportation Emissions",
-            "description": "Reduce car usage by 30% this year",
-            "target_reduction": 30.0,
-            "current_progress": 15.5,
-            "target_date": "2024-12-31",
-            "category": "transportation",
-            "status": "active",
-            "created_at": "2024-01-01T00:00:00Z"
-        }
-    ]
-
-
-@goals_router.post("/", response_model=Dict[str, Any], status_code=status.HTTP_201_CREATED)
-async def create_goal(
-    goal_data: GoalCreate,
-    current_user: Dict[str, Any] = Depends(get_current_user)
-):
-    """Create a new carbon reduction goal"""
-    # Mock response
-    return {
-        "id": "new_goal_id",
-        "user_id": current_user.get("user_id", "mock_user"),
-        "message": "Goal created successfully",
-        **goal_data.dict()
-    }
-
-
-# Achievements endpoints
-achievements_router = APIRouter(prefix="/achievements", tags=["Achievements"])
-
-
-@achievements_router.get("/", response_model=List[Dict[str, Any]])
-async def get_achievements(current_user: Dict[str, Any] = Depends(get_current_user)):
-    """Get user's achievements and available achievements"""
-    # Mock response
-    return [
-        {
-            "id": "first_entry",
-            "title": "First Steps",
-            "description": "Record your first carbon emission",
-            "icon": "🌱",
-            "points": 10,
-            "unlocked_at": "2024-01-15T08:00:00Z",
-            "progress": 100,
-            "requirements": {"entries_count": 1}
-        },
-        {
-            "id": "week_warrior",
-            "title": "Week Warrior",
-            "description": "Track emissions for 7 consecutive days",
-            "icon": "💪",
-            "points": 50,
-            "unlocked_at": None,
-            "progress": 42.8,
-            "requirements": {"consecutive_days": 7}
-        }
-    ]
+    try:
+        user_id = current_user.get("user_id")
+        if not user_id:
+            raise HTTPException(status_code=401, detail="User ID not found")
+        
+        # Get analytics from DynamoDB
+        analytics = await dynamodb_service.get_analytics(
+            user_id=user_id,
+            start_date=start_date.isoformat(),
+            end_date=end_date.isoformat()
+        )
+        
+        # Add period information
+        analytics["period_start"] = start_date
+        analytics["period_end"] = end_date
+        
+        return analytics
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving analytics: {str(e)}")
