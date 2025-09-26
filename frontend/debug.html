@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CarbonTrack - Debug Version</title>
+    
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .debug { background: #f0f0f0; padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .error { color: red; }
+        .success { color: green; }
+    </style>
+</head>
+<body>
+    <h1>CarbonTrack Debug Version</h1>
+    
+    <div class="debug">
+        <h3>Loading Status:</h3>
+        <div id="status">Initializing...</div>
+    </div>
+    
+    <div id="app">
+        <div class="debug">
+            <h3>Vue App Content:</h3>
+            <p>Current View: {{ currentView }}</p>
+            <p>Authenticated: {{ isAuthenticated }}</p>
+            <button @click="currentView = 'login'">Test Vue Click</button>
+        </div>
+    </div>
+
+    <script>
+        const statusDiv = document.getElementById('status');
+        function addStatus(message, type = 'info') {
+            const className = type === 'error' ? 'error' : (type === 'success' ? 'success' : '');
+            statusDiv.innerHTML += `<div class="${className}">[${new Date().toLocaleTimeString()}] ${message}</div>`;
+            console.log(message);
+        }
+        
+        addStatus('Starting script execution...');
+        
+        // Test basic JavaScript
+        try {
+            addStatus('Basic JavaScript: OK', 'success');
+        } catch (e) {
+            addStatus('Basic JavaScript Error: ' + e.message, 'error');
+        }
+    </script>
+
+    <!-- Load Vue.js -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script>
+        addStatus('Vue.js script tag executed');
+        
+        if (typeof Vue === 'undefined') {
+            addStatus('ERROR: Vue.js not loaded from CDN', 'error');
+        } else {
+            addStatus('Vue.js loaded successfully', 'success');
+            
+            try {
+                const { createApp } = Vue;
+                addStatus('Vue createApp extracted', 'success');
+                
+                const app = createApp({
+                    data() {
+                        return {
+                            currentView: 'debug',
+                            isAuthenticated: false
+                        };
+                    },
+                    mounted() {
+                        addStatus('Vue app mounted successfully!', 'success');
+                    }
+                });
+                
+                addStatus('Vue app created, attempting to mount...');
+                app.mount('#app');
+                addStatus('Vue mount command executed', 'success');
+                
+            } catch (error) {
+                addStatus('Vue Error: ' + error.message, 'error');
+                console.error('Full error:', error);
+            }
+        }
+    </script>
+</body>
+</html>

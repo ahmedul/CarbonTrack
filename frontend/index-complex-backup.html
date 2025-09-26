@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CarbonTrack - Track Your Carbon Footprint</title>
+    
+    <!-- Vue.js 3 CDN -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Chart.js for data visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Axios for API calls -->
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        [v-cloak] { display: none; }
+        
+        :root {
+            --primary-50: #eff6ff;
+            --primary-100: #dbeafe;
+            --primary-200: #bfdbfe;
+            --primary-300: #93c5fd;
+            --primary-400: #60a5fa;
+            --primary-500: #3b82f6;
+            --primary-600: #2563eb;
+            --primary-700: #1d4ed8;
+            --primary-800: #1e40af;
+            --primary-900: #1e3a8a;
+        }
+        
+        * {
+            font-family: 'Inter', sans-serif;
+        }
+        
+        .gradient-bg {
+            background: linear-gradient(135deg, var(--primary-600) 0%, var(--primary-800) 100%);
+        }
+        
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .card-hover {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .card-hover:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary-500) 0%, var(--primary-600) 100%);
+            transition: all 0.2s ease;
+        }
+        
+        .btn-primary:hover {
+            background: linear-gradient(135deg, var(--primary-600) 0%, var(--primary-700) 100%);
+            transform: translateY(-1px);
+            box-shadow: 0 10px 20px rgba(59, 130, 246, 0.4);
+        }
+        
+        .input-field {
+            transition: all 0.2s ease;
+            border: 2px solid #e5e7eb;
+        }
+        
+        .input-field:focus {
+            border-color: var(--primary-500);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        
+        .stats-card {
+            background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+            border-left: 4px solid var(--primary-500);
+        }
+        
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .pulse-dot {
+            position: relative;
+        }
+        
+        .pulse-dot::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 100%;
+            height: 100%;
+            background: var(--primary-500);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+            70% { opacity: 0; transform: translate(-50%, -50%) scale(1.4); }
+            100% { opacity: 0; transform: translate(-50%, -50%) scale(1); }
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div id="app">
+        <!-- Debug: Vue app container -->
+        <!-- Navigation -->
+        <nav class="gradient-bg text-white shadow-2xl relative overflow-hidden">
+            <div class="absolute inset-0 bg-gradient-to-r from-blue-600/20 to-blue-800/20"></div>
+            <div class="container mx-auto px-6 relative z-10">
+                <div class="flex justify-between items-center h-20">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center pulse-dot">
+                            <span class="text-2xl">🌍</span>
+                        </div>
+                        <div>
+                            <h1 class="text-2xl font-bold tracking-tight">CarbonTrack</h1>
+                            <p class="text-blue-100 text-xs font-medium">Environmental Impact Tracker</p>
+                        </div>
+                    </div>
+                    <div class="flex space-x-2">
+                        <button @click="currentView = 'dashboard'" 
+                                :class="{'bg-white/30 shadow-lg': currentView === 'dashboard'}"
+                                class="px-4 py-2.5 rounded-xl hover:bg-white/20 transition-all duration-200 font-medium text-sm backdrop-blur-sm">
+                            📊 Dashboard
+                        </button>
+                        <button @click="currentView = 'input'" 
+                                :class="{'bg-white/30 shadow-lg': currentView === 'input'}"
+                                class="px-4 py-2.5 rounded-xl hover:bg-white/20 transition-all duration-200 font-medium text-sm backdrop-blur-sm">
+                            ➕ Add Entry
+                        </button>
+                        <button @click="currentView = 'profile'" 
+                                :class="{'bg-white/30 shadow-lg': currentView === 'profile'}"
+                                class="px-4 py-2.5 rounded-xl hover:bg-white/20 transition-all duration-200 font-medium text-sm backdrop-blur-sm">
+                            👤 Profile
+                        </button>
+                        <button v-if="!isAuthenticated" @click="currentView = 'login'" 
+                                class="px-4 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 transition-all duration-200 font-medium text-sm backdrop-blur-sm border border-white/30">
+                            🔐 Login
+                        </button>
+                        <button v-else @click="logout" 
+                                class="px-4 py-2.5 rounded-xl bg-red-500/80 hover:bg-red-600/80 transition-all duration-200 font-medium text-sm backdrop-blur-sm">
+                            🚪 Logout
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <div class="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-100">
+        <div class="container mx-auto px-6 py-12">
+            <!-- Login View -->
+            <div v-if="currentView === 'login' && !isAuthenticated" class="max-w-md mx-auto fade-in">
+                <div class="glass-effect rounded-2xl shadow-2xl p-8 card-hover">
+                    <div class="text-center mb-8">
+                        <div class="w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <span class="text-2xl text-white">🔐</span>
+                        </div>
+                        <h2 class="text-3xl font-bold text-gray-800 mb-2">Welcome Back</h2>
+                        <p class="text-gray-600">Sign in to your CarbonTrack account</p>
+                    </div>
+                    <form @submit.prevent="login" class="space-y-6">
+                        <div>
+                            <label class="block text-gray-700 text-sm font-semibold mb-3">Email Address</label>
+                            <input v-model="loginForm.email" type="email" required
+                                   placeholder="Enter your email"
+                                   class="w-full px-4 py-3 input-field rounded-xl focus:outline-none bg-white/70">
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 text-sm font-semibold mb-3">Password</label>
+                            <input v-model="loginForm.password" type="password" required
+                                   placeholder="Enter your password"
+                                   class="w-full px-4 py-3 input-field rounded-xl focus:outline-none bg-white/70">
+                        </div>
+                        <button type="submit" class="w-full btn-primary text-white py-3 rounded-xl font-semibold text-lg shadow-lg">
+                            Sign In
+                        </button>
+                    </form>
+                    <div class="mt-6 pt-6 border-t border-gray-200 text-center">
+                        <p class="text-sm text-gray-600">Demo credentials: demo@carbontrack.dev / DemoUser123!</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dashboard View -->
+            <div v-if="currentView === 'dashboard' && isAuthenticated" class="fade-in">
+                <div class="text-center mb-12">
+                    <h2 class="text-4xl font-bold text-gray-800 mb-4">Your Carbon Dashboard</h2>
+                    <p class="text-xl text-gray-600">Track your environmental impact and progress</p>
+                </div>
+                
+                <!-- Stats Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
+                    <div class="stats-card rounded-2xl shadow-xl p-8 card-hover">
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="w-12 h-12 bg-gradient-to-br from-red-400 to-red-500 rounded-xl flex items-center justify-center">
+                                <span class="text-white text-xl">🌡️</span>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-sm font-medium text-gray-600 uppercase tracking-wide">Total Emissions</p>
+                            </div>
+                        </div>
+                        <p class="text-3xl font-bold text-gray-800 mb-2">{{ displayTotalEmissions }}</p>
+                        <p class="text-red-600 font-medium">kg CO₂ equivalent</p>
+                    </div>
+                    
+                    <div class="stats-card rounded-2xl shadow-xl p-8 card-hover">
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="w-12 h-12 bg-gradient-to-br from-blue-400 to-blue-500 rounded-xl flex items-center justify-center">
+                                <span class="text-white text-xl">📅</span>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-sm font-medium text-gray-600 uppercase tracking-wide">This Month</p>
+                            </div>
+                        </div>
+                        <p class="text-3xl font-bold text-gray-800 mb-2">{{ displayMonthlyEmissions }}</p>
+                        <p class="text-blue-600 font-medium">kg CO₂ this month</p>
+                    </div>
+                    
+                    <div class="stats-card rounded-2xl shadow-xl p-8 card-hover">
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="w-12 h-12 bg-gradient-to-br from-green-400 to-green-500 rounded-xl flex items-center justify-center">
+                                <span class="text-white text-xl">🎯</span>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-sm font-medium text-gray-600 uppercase tracking-wide">Goal Progress</p>
+                            </div>
+                        </div>
+                        <p class="text-3xl font-bold text-gray-800 mb-2">{{ goalProgress }}%</p>
+                        <div class="w-full bg-gray-200 rounded-full h-2 mt-3">
+                            <div class="bg-gradient-to-r from-green-400 to-green-500 h-2 rounded-full transition-all duration-500" 
+                                 :style="`width: ${Math.min(goalProgress, 100)}%`"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Chart -->
+                <div class="glass-effect rounded-2xl shadow-2xl p-8 mb-12 card-hover">
+                    <div class="flex items-center justify-between mb-6">
+                        <div>
+                            <h3 class="text-2xl font-bold text-gray-800">Emissions Trend</h3>
+                            <p class="text-gray-600 mt-1">Your carbon footprint over time</p>
+                        </div>
+                        <div class="w-10 h-10 bg-gradient-to-br from-blue-400 to-blue-500 rounded-xl flex items-center justify-center">
+                            <span class="text-white">📈</span>
+                        </div>
+                    </div>
+                    <div class="h-80">
+                        <canvas id="emissionsChart" class="w-full h-full"></canvas>
+                    </div>
+                </div>
+
+                <!-- Recent Entries -->
+                <div class="glass-effect rounded-2xl shadow-2xl p-8 card-hover">
+                    <div class="flex items-center justify-between mb-6">
+                        <div>
+                            <h3 class="text-2xl font-bold text-gray-800">Recent Activity</h3>
+                            <p class="text-gray-600 mt-1">Your latest carbon emission entries</p>
+                        </div>
+                        <div class="w-10 h-10 bg-gradient-to-br from-blue-400 to-blue-500 rounded-xl flex items-center justify-center">
+                            <span class="text-white">📋</span>
+                        </div>
+                    </div>
+                                        <div v-if=\"emissions.length === 0\" class=\"text-center py-12\">\n                        <div class=\"w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4\">\n                            <span class=\"text-2xl\">🌱</span>\n                        </div>\n                        <h4 class=\"text-lg font-semibold text-gray-700 mb-2\">No entries yet</h4>\n                        <p class=\"text-gray-500 mb-6\">Start tracking your carbon footprint today!</p>\n                        <div class=\"flex flex-col sm:flex-row gap-3 justify-center\">\n                            <button @click=\"currentView = 'input'\" \n                                    class=\"btn-primary text-white px-6 py-3 rounded-xl font-semibold\">\n                                Add Your First Entry\n                            </button>\n                            <button @click=\"createSampleData()\" \n                                    class=\"bg-blue-100 text-blue-700 px-6 py-3 rounded-xl font-semibold hover:bg-blue-200 transition-all duration-200\">\n                                📊 Create Demo Data\n                            </button>\n                        </div>\n                    </div>"
+                    <div v-else class="space-y-4">
+                        <div v-for="(entry, index) in emissions.slice(0, 5)" :key="entry.id" 
+                             class="bg-white/60 backdrop-blur-sm border border-white/40 rounded-xl p-6 hover:bg-white/80 transition-all duration-200"
+                             :style="`animation-delay: ${index * 100}ms`">
+                            <div class="flex justify-between items-start">
+                                <div class="flex-1">
+                                    <div class="flex items-center space-x-3 mb-2">
+                                        <span class="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center text-sm">
+                                            {{ entry.category === 'transportation' ? '🚗' : 
+                                               entry.category === 'energy' ? '⚡' : 
+                                               entry.category === 'food' ? '🍽️' : 
+                                               entry.category === 'waste' ? '🗑️' : '🌍' }}
+                                        </span>
+                                        <div>
+                                            <h4 class="font-semibold text-gray-800">{{ entry.activity }}</h4>
+                                            <p class="text-sm text-gray-600 capitalize">{{ entry.category }}</p>
+                                        </div>
+                                    </div>
+                                    <p class="text-sm text-gray-600 ml-11">{{ entry.amount }} {{ entry.unit }}</p>
+                                </div>
+                                <div class="text-right ml-4">
+                                    <p class="font-bold text-lg text-red-600">{{ entry.co2_equivalent }}</p>
+                                    <p class="text-xs text-red-500 font-medium">kg CO₂</p>
+                                    <p class="text-xs text-gray-500 mt-1">{{ formatDate(entry.date) }}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Input View -->
+            <div v-if="currentView === 'input' && isAuthenticated" class="max-w-2xl mx-auto fade-in">
+                <div class="glass-effect rounded-2xl shadow-2xl p-8 card-hover">
+                    <div class="text-center mb-8">
+                        <div class="w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <span class="text-2xl text-white">➕</span>
+                        </div>
+                        <h2 class="text-3xl font-bold text-gray-800 mb-2">Add Carbon Emission</h2>
+                        <p class="text-gray-600">Track your environmental impact</p>
+                    </div>
+                    <form @submit.prevent="addEmission" class="space-y-6">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label class="block text-gray-700 text-sm font-semibold mb-3">Category</label>
+                                <select v-model="emissionForm.category" required
+                                        class="w-full px-4 py-3 input-field rounded-xl focus:outline-none bg-white/70">
+                                    <option value="">Select Category</option>
+                                    <option value="transportation">🚗 Transportation</option>
+                                    <option value="energy">⚡ Energy</option>
+                                    <option value="food">🍽️ Food</option>
+                                    <option value="waste">🗑️ Waste</option>
+                                    <option value="other">🌍 Other</option>
+                                </select>
+                            </div>
+                            
+                            <div>
+                                <label class="block text-gray-700 text-sm font-semibold mb-3">Date</label>
+                                <input v-model="emissionForm.date" type="date" required
+                                       class="w-full px-4 py-3 input-field rounded-xl focus:outline-none bg-white/70">
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-gray-700 text-sm font-semibold mb-3">Activity</label>
+                            <input v-model="emissionForm.activity" type="text" required
+                                   placeholder="e.g., Car drive, Flight, Electricity usage"
+                                   class="w-full px-4 py-3 input-field rounded-xl focus:outline-none bg-white/70">
+                        </div>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label class="block text-gray-700 text-sm font-semibold mb-3">Amount</label>
+                                <input v-model="emissionForm.amount" type="number" step="0.01" required
+                                       placeholder="Enter amount"
+                                       class="w-full px-4 py-3 input-field rounded-xl focus:outline-none bg-white/70">
+                            </div>
+                            <div>
+                                <label class="block text-gray-700 text-sm font-semibold mb-3">Unit</label>
+                                <select v-model="emissionForm.unit" required
+                                        class="w-full px-4 py-3 input-field rounded-xl focus:outline-none bg-white/70">
+                                    <option value="">Select Unit</option>
+                                    <option value="km">Kilometers</option>
+                                    <option value="miles">Miles</option>
+                                    <option value="kWh">Kilowatt Hours</option>
+                                    <option value="liters">Liters</option>
+                                    <option value="kg">Kilograms</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-gray-700 text-sm font-semibold mb-3">Description (Optional)</label>
+                            <textarea v-model="emissionForm.description" 
+                                      placeholder="Add any additional details..."
+                                      class="w-full px-4 py-3 input-field rounded-xl focus:outline-none bg-white/70" 
+                                      rows="4"></textarea>
+                        </div>
+                        
+                        <button type="submit" class="w-full btn-primary text-white py-4 rounded-xl font-semibold text-lg shadow-lg">
+                            ✨ Add Emission Entry
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Profile View -->
+            <div v-if="currentView === 'profile' && isAuthenticated" class="max-w-2xl mx-auto fade-in">
+                <div class="glass-effect rounded-2xl shadow-2xl p-8 card-hover">
+                    <div class="text-center mb-8">
+                        <div class="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <span class="text-3xl text-white">👤</span>
+                        </div>
+                        <h2 class="text-3xl font-bold text-gray-800 mb-2">User Profile</h2>
+                        <p class="text-gray-600">Manage your account settings</p>
+                    </div>
+                    <form class="space-y-6">
+                        <div>
+                            <label class="block text-gray-700 text-sm font-semibold mb-3">Full Name</label>
+                            <input v-model="userProfile.full_name" type="text"
+                                   placeholder="Enter your full name"
+                                   class="w-full px-4 py-3 input-field rounded-xl focus:outline-none bg-white/70">
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 text-sm font-semibold mb-3">Email Address</label>
+                            <input v-model="userProfile.email" type="email" disabled
+                                   class="w-full px-4 py-3 rounded-xl bg-gray-100 border-2 border-gray-200 text-gray-600 cursor-not-allowed">
+                            <p class="text-xs text-gray-500 mt-1">Email cannot be changed</p>
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 text-sm font-semibold mb-3">Monthly Carbon Budget</label>
+                            <div class="relative">
+                                <input v-model="userProfile.carbon_budget" type="number"
+                                       placeholder="Set your monthly target"
+                                       class="w-full px-4 py-3 input-field rounded-xl focus:outline-none bg-white/70 pr-16">
+                                <span class="absolute right-4 top-3.5 text-gray-500 font-medium">kg CO₂</span>
+                            </div>
+                            <p class="text-xs text-gray-500 mt-1">Your target monthly carbon emissions limit</p>
+                        </div>
+                        
+                        <!-- Profile Stats -->
+                        <div class="bg-blue-50 rounded-xl p-6 border border-blue-100">
+                            <h3 class="font-semibold text-gray-800 mb-4">Account Statistics</h3>
+                            <div class="grid grid-cols-2 gap-4 text-center">
+                                <div>
+                                    <p class="text-2xl font-bold text-blue-600">{{ emissions.length }}</p>
+                                    <p class="text-sm text-gray-600">Total Entries</p>
+                                </div>
+                                <div>
+                                    <p class="text-2xl font-bold text-blue-600">{{ Math.round((userProfile.carbon_budget - monthlyEmissions) || 0) }}</p>
+                                    <p class="text-sm text-gray-600">Budget Remaining</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <button @click="updateProfile" type="button" 
+                                class="w-full btn-primary text-white py-4 rounded-xl font-semibold text-lg shadow-lg">
+                            💾 Update Profile
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Not Authenticated Message -->
+            <div v-if="!isAuthenticated && currentView !== 'login'" class="text-center fade-in">
+                <div class="glass-effect rounded-2xl shadow-2xl p-12 max-w-2xl mx-auto card-hover">
+                    <div class="w-24 h-24 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center mx-auto mb-8">
+                        <span class="text-4xl text-white">🌍</span>
+                    </div>
+                    <h2 class="text-4xl font-bold text-gray-800 mb-4">Welcome to CarbonTrack</h2>
+                    <p class="text-xl text-gray-600 mb-8 leading-relaxed">Take control of your environmental impact with our comprehensive carbon footprint tracking platform</p>
+                    <div class="flex flex-wrap justify-center gap-4 mb-8">
+                        <div class="flex items-center space-x-2 text-gray-600">
+                            <span class="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">📈</span>
+                            <span>Track Emissions</span>
+                        </div>
+                        <div class="flex items-center space-x-2 text-gray-600">
+                            <span class="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">🎯</span>
+                            <span>Set Goals</span>
+                        </div>
+                        <div class="flex items-center space-x-2 text-gray-600">
+                            <span class="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">🌱</span>
+                            <span>Make Impact</span>
+                        </div>
+                    </div>
+                    <button @click="currentView = 'login'" class="btn-primary text-white px-8 py-4 rounded-xl font-semibold text-lg shadow-lg">
+                        Get Started Today
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app-simple.js"></script>
+</body>
+</html>
