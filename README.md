@@ -36,8 +36,8 @@ It is designed to showcase **cloud-native architecture on AWS** and has the pote
 - [✅] Define DynamoDB schema for users + carbon data  
 
 ### 🚧 Phase 2 (Frontend + Integration)
-- [ ] Deploy Vue.js frontend on S3 + CloudFront  
-- [ ] Connect frontend with backend APIs  
+- [✅] Deploy Vue.js frontend on S3 + CloudFront  
+- [✅] Connect frontend with backend APIs  
 
 ### 🔮 Phase 3 (User Experience & CI/CD)
 - [ ] Build carbon footprint calculation logic  
