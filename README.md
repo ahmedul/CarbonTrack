@@ -5,7 +5,7 @@ It is designed to showcase **cloud-native architecture on AWS** and has the pote
 
 ---
 
-## � Carbon Calculation Engine
+## 📊 Carbon Calculation Engine
 
 CarbonTrack uses scientifically-backed emission factors from leading environmental agencies to provide accurate carbon footprint calculations across multiple categories:
 
