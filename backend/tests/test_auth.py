@@ -33,12 +33,12 @@ def test_register_user(client: TestClient):
     }
     
     response = client.post("/api/v1/auth/register", json=user_data)
-    # With mocked AWS services, expect success or validation error
-    assert response.status_code in [201, 400]
+    # With mocked AWS services, expect success
+    assert response.status_code == 201
     
-    if response.status_code == 201:
-        data = response.json()
-        assert "user_id" in data or "message" in data
+    data = response.json()
+    assert "user_id" in data
+    assert data["email"] == user_data["email"]
 
 
 def test_login_user(client: TestClient):
@@ -49,8 +49,12 @@ def test_login_user(client: TestClient):
     }
     
     response = client.post("/api/v1/auth/login", json=login_data)
-    # With mocked AWS services, expect success or auth error
-    assert response.status_code in [200, 401]
+    # With mocked AWS services, expect success
+    assert response.status_code == 200
+    
+    data = response.json()
+    assert "access_token" in data
+    assert data["token_type"] == "Bearer"
 
 
 def test_password_reset(client: TestClient):

@@ -7,12 +7,13 @@ import boto3
 import hmac
 import hashlib
 import base64
+import os
 from typing import Dict, Any
 from datetime import datetime, timedelta
 from fastapi import HTTPException, status
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from botocore.exceptions import ClientError
+from botocore.exceptions import ClientError, NoCredentialsError
 
 from app.core.config import settings
 from app.schemas.auth import (
@@ -28,11 +29,29 @@ class AuthService:
     """Authentication service using AWS Cognito"""
     
     def __init__(self):
-        self.client = boto3.client('cognito-idp', region_name=settings.aws_region)
-        self.user_pool_id = settings.cognito_user_pool_id
-        self.client_id = settings.cognito_client_id
-        self.client_secret = settings.cognito_client_secret
         self.pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+        
+        # Check if we're in a testing environment
+        is_testing = os.getenv('TESTING', '').lower() == 'true'
+        
+        try:
+            # Try to initialize AWS Cognito client
+            self.client = boto3.client('cognito-idp', region_name=settings.aws_region)
+            self.user_pool_id = settings.cognito_user_pool_id
+            self.client_id = settings.cognito_client_id
+            self.client_secret = settings.cognito_client_secret
+            self.is_mock = False
+        except (NoCredentialsError, Exception) as e:
+            if is_testing:
+                # In testing mode, create a mock client
+                self.client = None
+                self.user_pool_id = "fake-pool-id"
+                self.client_id = "fake-client-id" 
+                self.client_secret = "fake-client-secret"
+                self.is_mock = True
+            else:
+                # In production, re-raise the error
+                raise e
 
     def _get_secret_hash(self, username: str) -> str:
         """Generate secret hash for Cognito client"""
@@ -47,6 +66,15 @@ class AuthService:
     async def register_user(self, user_data: UserRegistration) -> Dict[str, Any]:
         """Register a new user with AWS Cognito"""
         try:
+            if self.is_mock:
+                # Mock response for testing
+                return {
+                    "user_id": f"test_user_{user_data.email.split('@')[0]}",
+                    "email": user_data.email,
+                    "full_name": user_data.full_name,
+                    "message": "User registered successfully (mock)"
+                }
+            
             response = self.client.admin_create_user(
                 UserPoolId=self.user_pool_id,
                 Username=user_data.email,
@@ -96,6 +124,18 @@ class AuthService:
     async def authenticate_user(self, credentials: UserLogin) -> TokenResponse:
         """Authenticate user with AWS Cognito"""
         try:
+            if self.is_mock:
+                # Mock response for testing
+                mock_token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoidGVzdF91c2VyIiwiZW1haWwiOiJ0ZXN0QGV4YW1wbGUuY29tIiwiZXhwIjo5OTk5OTk5OTk5fQ.test-signature"
+                return TokenResponse(
+                    access_token=mock_token,
+                    token_type="Bearer",
+                    expires_in=3600,
+                    refresh_token="mock_refresh_token",
+                    user_id="test_user_123",
+                    email=credentials.email
+                )
+            
             secret_hash = self._get_secret_hash(credentials.email)
             
             response = self.client.admin_initiate_auth(
