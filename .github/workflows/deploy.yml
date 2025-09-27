@@ -39,11 +39,18 @@ jobs:
       run: |
         cd backend
         pip install -r requirements.txt
+        pip install moto[cognitoidp] pytest-mock
         
     - name: Run backend tests
       run: |
         cd backend
         python -m pytest tests/ -v
+      env:
+        AWS_ACCESS_KEY_ID: fake-test-key-id
+        AWS_SECRET_ACCESS_KEY: fake-test-secret-key
+        AWS_DEFAULT_REGION: us-east-1
+        COGNITO_USER_POOL_ID: fake-pool-id
+        COGNITO_CLIENT_ID: fake-client-id
         
     - name: Test carbon calculations
       run: |
