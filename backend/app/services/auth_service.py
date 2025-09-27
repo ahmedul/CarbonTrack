@@ -201,6 +201,15 @@ class AuthService:
     async def refresh_token(self, refresh_token: str, username: str) -> TokenResponse:
         """Refresh access token using refresh token"""
         try:
+            if self.is_mock:
+                # Mock response for testing
+                return TokenResponse(
+                    access_token="new_mock_access_token",
+                    token_type="Bearer",
+                    expires_in=3600,
+                    refresh_token="new_mock_refresh_token"
+                )
+            
             secret_hash = self._get_secret_hash(username)
             
             response = self.client.admin_initiate_auth(
@@ -228,6 +237,10 @@ class AuthService:
     async def forgot_password(self, email: str) -> MessageResponse:
         """Initiate password reset process"""
         try:
+            if self.is_mock:
+                # Mock response for testing
+                return MessageResponse(message="Password reset code sent to email (mock)")
+            
             secret_hash = self._get_secret_hash(email)
             
             self.client.forgot_password(
@@ -252,6 +265,10 @@ class AuthService:
     async def confirm_forgot_password(self, data: PasswordConfirm) -> MessageResponse:
         """Confirm password reset with code"""
         try:
+            if self.is_mock:
+                # Mock response for testing
+                return MessageResponse(message="Password reset successful (mock)")
+            
             secret_hash = self._get_secret_hash(data.email)
             
             self.client.confirm_forgot_password(

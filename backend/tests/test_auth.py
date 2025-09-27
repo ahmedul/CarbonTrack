@@ -64,8 +64,12 @@ def test_password_reset(client: TestClient):
     }
     
     response = client.post("/api/v1/auth/reset-password", json=reset_data)
-    # Since we don't have real AWS Cognito, expect error but endpoint should exist
-    assert response.status_code in [200, 400, 500]
+    # With mocked AWS services, expect success
+    assert response.status_code == 200
+    
+    data = response.json()
+    assert "message" in data
+    assert "reset code sent" in data["message"].lower()
 
 
 def test_invalid_email_format(client: TestClient):
