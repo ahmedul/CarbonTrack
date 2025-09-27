@@ -37,14 +37,17 @@ jobs:
     
     - name: Install backend dependencies
       run: |
-        pip install -r backend/requirements.txt
+        cd backend
+        pip install -r requirements.txt
         
     - name: Run backend tests
       run: |
+        cd backend
         python -m pytest tests/ -v
         
     - name: Test carbon calculations
       run: |
+        cd backend
         python test_carbon_calculator.py
 
   build-frontend:
