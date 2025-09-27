@@ -40,8 +40,8 @@ It is designed to showcase **cloud-native architecture on AWS** and has the pote
 - [✅] Connect frontend with backend APIs  
 
 ### 🔮 Phase 3 (User Experience & CI/CD)
-- [ ] Build carbon footprint calculation logic  
-- [ ] Create dashboard with charts (CO₂ trend)  
+- [✅] Build carbon footprint calculation logic  
+- [✅] Create dashboard with charts (CO₂ trend)  
 - [ ] Set up CI/CD pipeline with CodePipeline  
 
 ---
