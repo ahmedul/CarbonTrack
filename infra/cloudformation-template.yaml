@@ -161,6 +161,28 @@ Resources:
         - Key: Application
           Value: CarbonTrack
 
+  # S3 Bucket for Document Storage (defined early to avoid circular dependency)
+  DocumentsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub 'carbontrack-documents-${Environment}'
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOldVersions
+            Status: Enabled
+            NoncurrentVersionExpirationInDays: 30
+          - Id: DeleteIncompleteUploads
+            Status: Enabled
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 7
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
   # Lambda Execution Role
   LambdaExecutionRole:
     Type: AWS::IAM::Role
@@ -267,7 +289,7 @@ Resources:
       FunctionName: !Ref BackendLambda
       Action: lambda:InvokeFunction
       Principal: apigateway.amazonaws.com
-      SourceArn: !Sub '${ApiGateway}/*/*'
+      SourceArn: !Sub '${ApiGateway}/*/*/*'
 
   # API Gateway Proxy Resource
   ApiGatewayProxyResource:
@@ -320,7 +342,7 @@ Resources:
   # API Gateway Deployment
   ApiGatewayDeployment:
     Type: AWS::ApiGateway::Deployment
-    DependsOn: [ApiGatewayProxyMethod, ApiGatewayOptionsMethod]
+    DependsOn: [ApiGatewayProxyMethod, ApiGatewayOptionsMethod, ApiGatewayLambdaPermission]
     Properties:
       RestApiId: !Ref ApiGateway
       StageName: !Ref Environment
@@ -373,37 +395,6 @@ Resources:
         - ALLOW_REFRESH_TOKEN_AUTH
       PreventUserExistenceErrors: ENABLED
       SupportedIdentityProviders: [COGNITO]
-
-  # S3 Bucket for Document Storage
-  DocumentsBucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      BucketName: !Sub 'carbontrack-documents-${Environment}'
-      VersioningConfiguration:
-        Status: Enabled
-      LifecycleConfiguration:
-        Rules:
-          - Id: DeleteOldVersions
-            Status: Enabled
-            NoncurrentVersionExpirationInDays: 30
-          - Id: DeleteIncompleteUploads
-            Status: Enabled
-            AbortIncompleteMultipartUpload:
-              DaysAfterInitiation: 7
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: true
-        BlockPublicPolicy: true
-        IgnorePublicAcls: true
-        RestrictPublicBuckets: true
-      NotificationConfiguration:
-        LambdaConfigurations:
-          - Event: s3:ObjectCreated:*
-            Function: !GetAtt DocumentProcessorLambda.Arn
-            Filter:
-              S3Key:
-                Rules:
-                  - Name: suffix
-                    Value: .pdf
 
   # Lambda for Document Processing
   DocumentProcessorLambda:
