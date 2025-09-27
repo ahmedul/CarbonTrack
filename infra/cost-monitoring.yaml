@@ -1,0 +1,241 @@
+# AWS Cost Management for CarbonTrack
+# Budget: €50/month maximum
+
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'CarbonTrack Cost Management and Monitoring'
+
+Parameters:
+  BudgetAmount:
+    Type: Number
+    Description: Monthly budget in EUR
+    Default: 50
+    MinValue: 10
+    MaxValue: 1000
+    
+  AlertEmail:
+    Type: String
+    Description: Email address for cost alerts
+    AllowedPattern: '^[^\s@]+@[^\s@]+\.[^\s@]+$'
+
+Resources:
+  # CloudWatch Dashboard for Cost Monitoring
+  CostMonitoringDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: CarbonTrack-Cost-Monitoring
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 0,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  [ "AWS/Billing", "EstimatedCharges", "Currency", "USD" ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "us-east-1",
+                "title": "Daily Estimated Charges"
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12,
+              "y": 0,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  [ "AWS/Lambda", "Invocations", "FunctionName", "carbontrack-api-production" ],
+                  [ ".", "Duration", ".", "." ],
+                  [ ".", "Errors", ".", "." ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${AWS::Region}",
+                "title": "Lambda Metrics"
+              }
+            },
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 6,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  [ "AWS/DynamoDB", "ConsumedReadCapacityUnits", "TableName", "carbontrack-emissions-production" ],
+                  [ ".", "ConsumedWriteCapacityUnits", ".", "." ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${AWS::Region}",
+                "title": "DynamoDB Usage"
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12,
+              "y": 6,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  [ "AWS/CloudFront", "Requests", "DistributionId", "${CloudFrontDistributionId}" ],
+                  [ ".", "BytesDownloaded", ".", "." ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "us-east-1",
+                "title": "CloudFront Usage"
+              }
+            }
+          ]
+        }
+
+  # Budget for Overall AWS Costs
+  CarbonTrackBudget:
+    Type: AWS::Budgets::Budget
+    Properties:
+      Budget:
+        BudgetName: CarbonTrack-Monthly-Budget
+        BudgetLimit:
+          Amount: !Ref BudgetAmount
+          Unit: EUR
+        TimeUnit: MONTHLY
+        BudgetType: COST
+        CostFilters:
+          TagKey:
+            - Application
+          TagValue:
+            - CarbonTrack
+      NotificationsWithSubscribers:
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 80  # Alert at 80% of budget (€40)
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: !Ref AlertEmail
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 100  # Alert when budget exceeded
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: !Ref AlertEmail
+        - Notification:
+            NotificationType: FORECASTED
+            ComparisonOperator: GREATER_THAN
+            Threshold: 100  # Alert when forecasted to exceed
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: !Ref AlertEmail
+
+  # Lambda Budget (Most Variable Cost)
+  LambdaBudget:
+    Type: AWS::Budgets::Budget
+    Properties:
+      Budget:
+        BudgetName: CarbonTrack-Lambda-Budget
+        BudgetLimit:
+          Amount: 15  # €15 max for Lambda
+          Unit: EUR
+        TimeUnit: MONTHLY
+        BudgetType: COST
+        CostFilters:
+          Service:
+            - AWS Lambda
+          TagKey:
+            - Application
+          TagValue:
+            - CarbonTrack
+      NotificationsWithSubscribers:
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 75
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: !Ref AlertEmail
+
+  # API Gateway Budget
+  ApiGatewayBudget:
+    Type: AWS::Budgets::Budget
+    Properties:
+      Budget:
+        BudgetName: CarbonTrack-APIGateway-Budget
+        BudgetLimit:
+          Amount: 10  # €10 max for API Gateway
+          Unit: EUR
+        TimeUnit: MONTHLY
+        BudgetType: COST
+        CostFilters:
+          Service:
+            - Amazon API Gateway
+          TagKey:
+            - Application
+          TagValue:
+            - CarbonTrack
+      NotificationsWithSubscribers:
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 75
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: !Ref AlertEmail
+
+  # CloudWatch Alarm for High Lambda Invocations
+  HighLambdaInvocationsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: CarbonTrack-High-Lambda-Invocations
+      AlarmDescription: Alert when Lambda invocations are unusually high
+      MetricName: Invocations
+      Namespace: AWS/Lambda
+      Statistic: Sum
+      Period: 3600  # 1 hour
+      EvaluationPeriods: 1
+      Threshold: 10000  # 10K requests per hour
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: carbontrack-api-production
+      AlarmActions:
+        - !Ref CostAlertTopic
+
+  # SNS Topic for Cost Alerts
+  CostAlertTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: CarbonTrack-Cost-Alerts
+      DisplayName: CarbonTrack Cost Alerts
+      Subscription:
+        - Protocol: email
+          Endpoint: !Ref AlertEmail
+
+  # CloudWatch Log Group with Retention (Cost Optimization)
+  ApiLogGroupOptimized:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/carbontrack-api-production-optimized
+      RetentionInDays: 7  # Short retention to reduce costs
+
+Outputs:
+  DashboardURL:
+    Description: CloudWatch Dashboard URL for cost monitoring
+    Value: !Sub 'https://${AWS::Region}.console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#dashboards:name=CarbonTrack-Cost-Monitoring'
+    
+  BudgetId:
+    Description: AWS Budget ID for tracking
+    Value: !Ref CarbonTrackBudget
