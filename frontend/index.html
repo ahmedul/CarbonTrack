@@ -504,10 +504,28 @@
                             </div>
                         </div>
                         
-                        <div>
+                                                <div>
                             <label class="block text-gray-700 text-sm font-semibold mb-3">Activity</label>
+                            <div v-if="emissionForm.category && activityOptions[emissionForm.category]" class="mb-3">
+                                <div class="text-sm text-gray-600 mb-2">💡 Suggested activities for {{ emissionForm.category }}:</div>
+                                <div class="grid grid-cols-1 gap-2 max-h-40 overflow-y-auto">
+                                    <div v-for="option in activityOptions[emissionForm.category]" :key="option.key"
+                                         @click="selectActivity(option)"
+                                         class="cursor-pointer p-3 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-all duration-200">
+                                        <div class="flex justify-between items-start">
+                                            <div>
+                                                <div class="font-medium text-gray-800">{{ option.name }}</div>
+                                                <div class="text-xs text-gray-500 mt-1">{{ option.example }}</div>
+                                            </div>
+                                            <div class="text-xs px-2 py-1 bg-gray-100 rounded-full">
+                                                {{ option.unit }}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                             <input v-model="emissionForm.activity" type="text" required
-                                   placeholder="e.g., Car drive, Flight, Electricity usage"
+                                   :placeholder="emissionForm.category ? 'Select from suggestions above or enter custom activity' : 'e.g., Car drive, Flight, Electricity usage'"
                                    class="w-full px-4 py-3 input-field rounded-xl focus:outline-none bg-white/70">
                         </div>
                         
