@@ -51,6 +51,7 @@ jobs:
         AWS_DEFAULT_REGION: us-east-1
         COGNITO_USER_POOL_ID: fake-pool-id
         COGNITO_CLIENT_ID: fake-client-id
+        TESTING: true
         
     - name: Test carbon calculations
       run: |

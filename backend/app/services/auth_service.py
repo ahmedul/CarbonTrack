@@ -34,23 +34,23 @@ class AuthService:
         # Check if we're in a testing environment
         is_testing = os.getenv('TESTING', '').lower() == 'true'
         
-        try:
-            # Try to initialize AWS Cognito client
-            self.client = boto3.client('cognito-idp', region_name=settings.aws_region)
-            self.user_pool_id = settings.cognito_user_pool_id
-            self.client_id = settings.cognito_client_id
-            self.client_secret = settings.cognito_client_secret
-            self.is_mock = False
-        except (NoCredentialsError, Exception) as e:
-            if is_testing:
-                # In testing mode, create a mock client
-                self.client = None
-                self.user_pool_id = "fake-pool-id"
-                self.client_id = "fake-client-id" 
-                self.client_secret = "fake-client-secret"
-                self.is_mock = True
-            else:
-                # In production, re-raise the error
+        if is_testing:
+            # In testing mode, use mock configuration
+            self.client = None
+            self.user_pool_id = "fake-pool-id"
+            self.client_id = "fake-client-id" 
+            self.client_secret = "fake-client-secret"
+            self.is_mock = True
+        else:
+            try:
+                # Try to initialize AWS Cognito client for production
+                self.client = boto3.client('cognito-idp', region_name=settings.aws_region)
+                self.user_pool_id = settings.cognito_user_pool_id
+                self.client_id = settings.cognito_client_id
+                self.client_secret = settings.cognito_client_secret
+                self.is_mock = False
+            except (NoCredentialsError, Exception) as e:
+                # In production without proper credentials, fail
                 raise e
 
     def _get_secret_hash(self, username: str) -> str:

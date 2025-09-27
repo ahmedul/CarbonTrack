@@ -20,6 +20,10 @@ def setup_test_env():
     os.environ["COGNITO_USER_POOL_ID"] = "fake-pool-id" 
     os.environ["COGNITO_CLIENT_ID"] = "fake-client-id"
     os.environ["TESTING"] = "true"
+    
+    print("✅ Test environment variables set:")
+    print(f"   TESTING = {os.environ.get('TESTING')}")
+    print(f"   AWS_ACCESS_KEY_ID = {os.environ.get('AWS_ACCESS_KEY_ID')}")
 
 
 @pytest.fixture(scope="session")
