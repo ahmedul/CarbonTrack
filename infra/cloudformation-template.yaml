@@ -10,6 +10,7 @@ Parameters:
   CertificateArn:
     Type: String
     Description: SSL Certificate ARN for CloudFront (must be in us-east-1)
+    Default: ''
     
   Environment:
     Type: String
@@ -56,9 +57,7 @@ Resources:
     Type: AWS::CloudFront::Distribution
     Properties:
       DistributionConfig:
-        Aliases:
-          - !Ref DomainName
-          - !Sub 'www.${DomainName}'
+        # Remove custom aliases for MVP - use CloudFront domain
         DefaultCacheBehavior:
           TargetOriginId: S3Origin
           ViewerProtocolPolicy: redirect-to-https
@@ -87,7 +86,8 @@ Resources:
         DefaultRootObject: index.html
         PriceClass: PriceClass_100
         ViewerCertificate:
-          AcmCertificateArn: !Ref CertificateArn
+          # Use CloudFront default certificate for HTTPS
+          CloudFrontDefaultCertificate: true
           SslSupportMethod: sni-only
           MinimumProtocolVersion: TLSv1.2_2021
 

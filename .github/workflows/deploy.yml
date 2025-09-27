@@ -176,8 +176,7 @@ jobs:
           --template-file infra/cloudformation-template.yaml \
           --stack-name carbontrack-production \
           --parameter-overrides \
-            DomainName=${{ secrets.DOMAIN_NAME }} \
-            CertificateArn=${{ secrets.SSL_CERTIFICATE_ARN }} \
+            Environment=production \
           --capabilities CAPABILITY_NAMED_IAM
 
   deploy-backend:
