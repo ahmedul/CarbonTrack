@@ -178,7 +178,7 @@ jobs:
           --parameter-overrides \
             DomainName=${{ secrets.DOMAIN_NAME }} \
             CertificateArn=${{ secrets.SSL_CERTIFICATE_ARN }} \
-          --capabilities CAPABILITY_IAM
+          --capabilities CAPABILITY_NAMED_IAM
 
   deploy-backend:
     runs-on: ubuntu-latest
