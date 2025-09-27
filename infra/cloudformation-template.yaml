@@ -5,7 +5,7 @@ Parameters:
   DomainName:
     Type: String
     Description: Domain name for the application (e.g., carbontrack.com)
-    Default: carbontrack.com
+    Default: ''
     
   CertificateArn:
     Type: String
@@ -17,6 +17,12 @@ Parameters:
     Description: Environment name
     Default: production
     AllowedValues: [production, staging]
+
+Conditions:
+  # Use custom domain only if both domain name and certificate are provided
+  UseCustomDomain: !And
+    - !Not [!Equals [!Ref DomainName, '']]
+    - !Not [!Equals [!Ref CertificateArn, '']]
 
 Resources:
   # S3 Bucket for Frontend Static Files
@@ -57,7 +63,12 @@ Resources:
     Type: AWS::CloudFront::Distribution
     Properties:
       DistributionConfig:
-        # Remove custom aliases for MVP - use CloudFront domain
+        # Conditionally add custom domain aliases
+        Aliases: !If
+          - UseCustomDomain
+          - - !Ref DomainName
+            - !Sub 'www.${DomainName}'
+          - !Ref 'AWS::NoValue'
         DefaultCacheBehavior:
           TargetOriginId: S3Origin
           ViewerProtocolPolicy: redirect-to-https
@@ -85,11 +96,12 @@ Resources:
         Enabled: true
         DefaultRootObject: index.html
         PriceClass: PriceClass_100
-        ViewerCertificate:
-          # Use CloudFront default certificate for HTTPS
-          CloudFrontDefaultCertificate: true
-          SslSupportMethod: sni-only
-          MinimumProtocolVersion: TLSv1.2_2021
+        ViewerCertificate: !If
+          - UseCustomDomain
+          - AcmCertificateArn: !Ref CertificateArn
+            SslSupportMethod: sni-only
+            MinimumProtocolVersion: TLSv1.2_2021
+          - CloudFrontDefaultCertificate: true
 
   # DynamoDB Table for Carbon Data
   CarbonDataTable:
