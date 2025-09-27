@@ -28,10 +28,10 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ env.PYTHON_VERSION }}
     
@@ -63,7 +63,7 @@ jobs:
     needs: test
     
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     
     - name: Create production build
       run: |
@@ -92,7 +92,7 @@ jobs:
         sed -i 's|http://127.0.0.1:8000|${{ secrets.PRODUCTION_API_URL }}|g' dist/index.html
         
     - name: Upload frontend artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: frontend-dist
         path: dist/
@@ -102,10 +102,10 @@ jobs:
     needs: test
     
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ env.PYTHON_VERSION }}
         
@@ -150,7 +150,7 @@ jobs:
         zip -r ../carbon-track-backend.zip .
         
     - name: Upload backend artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: backend-lambda
         path: carbon-track-backend.zip
@@ -194,7 +194,7 @@ jobs:
         aws-region: us-east-1
         
     - name: Download backend artifact
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: backend-lambda
         
@@ -230,7 +230,7 @@ jobs:
         aws-region: us-east-1
         
     - name: Download frontend artifact
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: frontend-dist
         path: dist/
