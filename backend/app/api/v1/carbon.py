@@ -12,9 +12,87 @@ from app.schemas.carbon import (
 )
 from app.core.middleware import get_current_user
 from app.services.dynamodb_service import dynamodb_service
+from app.services.carbon_calculator import calculate_carbon_footprint, calculator
 from app.models.dynamodb_models import CarbonEmissionModel
 
 router = APIRouter(prefix="/carbon-emissions", tags=["Carbon Tracking"])
+
+
+@router.get("/activities", response_model=Dict[str, Any])
+async def get_available_activities():
+    """
+    Get available activities and their emission factors for each category
+    
+    This helps frontend applications show users appropriate activity options
+    and provides transparency about emission calculations.
+    """
+    try:
+        activities = {
+            "transportation": {
+                "description": "Transportation activities with CO₂ emissions per km",
+                "activities": [
+                    {"key": "car_gasoline_small", "name": "Small Gasoline Car", "unit": "km", "factor": float(calculator.transportation_factors["car_gasoline_small"])},
+                    {"key": "car_gasoline_medium", "name": "Medium Gasoline Car", "unit": "km", "factor": float(calculator.transportation_factors["car_gasoline_medium"])},
+                    {"key": "car_gasoline_large", "name": "Large Gasoline Car/SUV", "unit": "km", "factor": float(calculator.transportation_factors["car_gasoline_large"])},
+                    {"key": "car_diesel_small", "name": "Small Diesel Car", "unit": "km", "factor": float(calculator.transportation_factors["car_diesel_small"])},
+                    {"key": "car_diesel_medium", "name": "Medium Diesel Car", "unit": "km", "factor": float(calculator.transportation_factors["car_diesel_medium"])},
+                    {"key": "car_hybrid", "name": "Hybrid Vehicle", "unit": "km", "factor": float(calculator.transportation_factors["car_hybrid"])},
+                    {"key": "car_electric", "name": "Electric Vehicle", "unit": "km", "factor": float(calculator.transportation_factors["car_electric"])},
+                    {"key": "motorcycle", "name": "Motorcycle", "unit": "km", "factor": float(calculator.transportation_factors["motorcycle"])},
+                    {"key": "bus_city", "name": "City Bus", "unit": "km", "factor": float(calculator.transportation_factors["bus_city"])},
+                    {"key": "train_local", "name": "Local/Commuter Train", "unit": "km", "factor": float(calculator.transportation_factors["train_local"])},
+                    {"key": "flight_domestic_short", "name": "Domestic Flight (<500km)", "unit": "km", "factor": float(calculator.transportation_factors["flight_domestic_short"])},
+                    {"key": "flight_domestic_medium", "name": "Domestic Flight (500-1500km)", "unit": "km", "factor": float(calculator.transportation_factors["flight_domestic_medium"])},
+                    {"key": "flight_international", "name": "International Flight (>1500km)", "unit": "km", "factor": float(calculator.transportation_factors["flight_international"])},
+                ]
+            },
+            "energy": {
+                "description": "Energy consumption activities with CO₂ emissions per unit",
+                "activities": [
+                    {"key": "electricity", "name": "Electricity", "unit": "kWh", "factor": float(calculator.energy_factors["electricity"])},
+                    {"key": "natural_gas_therms", "name": "Natural Gas", "unit": "therms", "factor": float(calculator.energy_factors["natural_gas_therms"])},
+                    {"key": "natural_gas_kwh", "name": "Natural Gas", "unit": "kWh", "factor": float(calculator.energy_factors["natural_gas_kwh"])},
+                    {"key": "heating_oil_gallons", "name": "Heating Oil", "unit": "gallons", "factor": float(calculator.energy_factors["heating_oil_gallons"])},
+                    {"key": "propane_gallons", "name": "Propane", "unit": "gallons", "factor": float(calculator.energy_factors["propane_gallons"])},
+                ]
+            },
+            "food": {
+                "description": "Food consumption activities with CO₂ emissions per kg",
+                "activities": [
+                    {"key": "beef", "name": "Beef", "unit": "kg", "factor": float(calculator.food_factors["beef"])},
+                    {"key": "lamb", "name": "Lamb", "unit": "kg", "factor": float(calculator.food_factors["lamb"])},
+                    {"key": "pork", "name": "Pork", "unit": "kg", "factor": float(calculator.food_factors["pork"])},
+                    {"key": "chicken", "name": "Chicken", "unit": "kg", "factor": float(calculator.food_factors["chicken"])},
+                    {"key": "fish_farmed", "name": "Farmed Fish", "unit": "kg", "factor": float(calculator.food_factors["fish_farmed"])},
+                    {"key": "fish_wild", "name": "Wild Fish", "unit": "kg", "factor": float(calculator.food_factors["fish_wild"])},
+                    {"key": "milk", "name": "Milk", "unit": "liters", "factor": float(calculator.food_factors["milk"])},
+                    {"key": "cheese", "name": "Cheese", "unit": "kg", "factor": float(calculator.food_factors["cheese"])},
+                    {"key": "eggs", "name": "Eggs", "unit": "kg", "factor": float(calculator.food_factors["eggs"])},
+                    {"key": "rice", "name": "Rice", "unit": "kg", "factor": float(calculator.food_factors["rice"])},
+                    {"key": "vegetables_root", "name": "Root Vegetables", "unit": "kg", "factor": float(calculator.food_factors["vegetables_root"])},
+                    {"key": "fruits_local", "name": "Local Fruits", "unit": "kg", "factor": float(calculator.food_factors["fruits_local"])},
+                ]
+            },
+            "waste": {
+                "description": "Waste disposal activities with CO₂ impact per kg (negative = carbon savings)",
+                "activities": [
+                    {"key": "landfill_mixed", "name": "Mixed Waste to Landfill", "unit": "kg", "factor": float(calculator.waste_factors["landfill_mixed"])},
+                    {"key": "recycling_paper", "name": "Paper Recycling", "unit": "kg", "factor": float(calculator.waste_factors["recycling_paper"])},
+                    {"key": "recycling_plastic", "name": "Plastic Recycling", "unit": "kg", "factor": float(calculator.waste_factors["recycling_plastic"])},
+                    {"key": "recycling_aluminum", "name": "Aluminum Recycling", "unit": "kg", "factor": float(calculator.waste_factors["recycling_aluminum"])},
+                    {"key": "composting_food", "name": "Food Composting", "unit": "kg", "factor": float(calculator.waste_factors["composting_food"])},
+                ]
+            }
+        }
+        
+        return {
+            "message": "Available carbon calculation activities",
+            "region": calculator.region.value,
+            "categories": activities
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving activities: {str(e)}")
 
 
 @router.get("/", response_model=List[Dict[str, Any]])
@@ -80,8 +158,16 @@ async def create_carbon_emission(
         if not user_id:
             raise HTTPException(status_code=401, detail="User ID not found")
         
-        # Calculate CO2 equivalent (simple calculation - can be enhanced)
-        co2_equivalent = Decimal(str(emission_data.amount * 0.2))  # Basic emission factor
+        # Calculate CO2 equivalent using sophisticated carbon calculator
+        calculation_result = calculate_carbon_footprint(
+            category=emission_data.category.value,
+            activity=emission_data.activity,
+            amount=float(emission_data.amount),
+            unit=emission_data.unit
+        )
+        
+        co2_equivalent = Decimal(str(calculation_result["co2_equivalent"]))
+        emission_factor = Decimal(str(calculation_result["emission_factor"]))
         
         # Create CarbonEmissionModel
         carbon_emission = CarbonEmissionModel(
@@ -93,7 +179,7 @@ async def create_carbon_emission(
             unit=emission_data.unit,
             description=emission_data.description,
             co2_equivalent=co2_equivalent,
-            emission_factor=Decimal('0.2')  # Basic factor
+            emission_factor=emission_factor
         )
         
         # Save to DynamoDB
@@ -105,6 +191,9 @@ async def create_carbon_emission(
                 "user_id": user_id,
                 "message": "Carbon emission recorded successfully",
                 "co2_equivalent": float(co2_equivalent),
+                "emission_factor": float(emission_factor),
+                "calculation_details": calculation_result["calculation_details"],
+                "calculation_region": calculation_result["region"],
                 **emission_data.dict()
             }
         else:
