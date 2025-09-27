@@ -155,5 +155,67 @@ flowchart TD
   D --> E["DynamoDB (Carbon Data)"]
   D --> F["S3 (Reports & Static Assets)"]
   A -->|Dashboard| G["Vue.js Frontend (S3 + CloudFront)"]
+```
+
+---
+
+## 🏢 Enterprise Features & Roadmap
+
+CarbonTrack is evolving from an individual carbon tracking MVP into a comprehensive **B2B SaaS platform** for enterprise sustainability management. 
+
+### 🎯 **Planned Enterprise Features**
+
+#### 📄 **PDF Data Import & Document Processing**
+- **OCR-Powered Extraction**: Automatically extract carbon data from utility bills, receipts, travel invoices
+- **Intelligent Classification**: ML-based document type detection and data parsing
+- **Batch Processing**: Upload multiple documents for bulk data import
+- **Supported Documents**: Electricity/gas bills, fuel receipts, flight bookings, sustainability reports
+
+#### 🏭 **Corporate Multi-Tenant Architecture** 
+- **Organizational Hierarchy**: Company → Business Units → Departments → Teams → Users
+- **Role-Based Access Control**: Sustainability directors, department managers, facility managers, employees  
+- **Department-Level Tracking**: Budget allocation, inter-department comparison, cost center reporting
+- **Custom Branding**: Company logos, sustainability mission statements, compliance requirements
+
+#### 🔗 **Third-Party API Integrations**
+- **Utility Companies**: Automatic meter reading (AMR) for real-time energy consumption
+- **Travel Systems**: Concur, Expensify integration for automatic travel carbon calculation
+- **Supply Chain**: Procurement system integration for Scope 3 emissions tracking
+- **IoT Sensors**: Smart building sensors, vehicle telematics, industrial IoT monitoring
+
+#### 📊 **Enterprise Reporting & Compliance**
+- **GHG Protocol Compliance**: Scope 1, 2, 3 emissions reporting automation
+- **CDP Questionnaires**: Climate Change, Supply Chain, Water Security reporting
+- **CSRD Reporting**: EU Corporate Sustainability Reporting Directive compliance
+- **Executive Dashboards**: C-suite sustainability KPIs and carbon ROI metrics
+
+#### 🌱 **Carbon Offset Marketplace**
+- **Verified Credits Integration**: Verra VCS, Gold Standard, Climate Action Reserve
+- **Portfolio Management**: Project type diversification, impact tracking, retirement certificates
+- **Co-Benefits Reporting**: SDG alignment, biodiversity impact, community benefits
+
+#### 🤖 **AI-Powered Analytics**
+- **Predictive Modeling**: Forecast future emissions and carbon costs
+- **Optimization Engine**: AI-powered carbon reduction strategy recommendations
+- **Anomaly Detection**: Identify unusual emission patterns and data quality issues
+- **Benchmark Analysis**: Compare performance against industry peers
+
+### 💼 **Target Market & Pricing**
+
+**Individual Plan**: $19/month - Personal carbon tracking
+**Professional Plan**: $99/month - Up to 50 employees, department tracking, basic integrations
+**Enterprise Plan**: $499/month - Unlimited users, full integrations, compliance reporting
+**Enterprise Plus**: Custom pricing - On-premise deployment, dedicated support, custom development
+
+### 📋 **Implementation Roadmap**
+
+**Phase 1 (Q1 2026)**: Multi-tenant architecture, PDF import, department tracking
+**Phase 2 (Q2 2026)**: API integrations, advanced reporting, compliance automation  
+**Phase 3 (Q3 2026)**: Carbon marketplace, supply chain tracking, executive dashboards
+**Phase 4 (Q4 2026)**: AI analytics, predictive modeling, optimization engine
+
+For detailed technical specifications, see:
+- 📖 **[Enterprise Features Guide](./ENTERPRISE_FEATURES.md)** - Comprehensive B2B feature roadmap
+- 📄 **[PDF Import Specification](./PDF_IMPORT_SPEC.md)** - Technical documentation for document processing
 
 
