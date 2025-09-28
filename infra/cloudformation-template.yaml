@@ -249,7 +249,9 @@ Resources:
                   - s3:GetObject
                   - s3:PutObject
                   - s3:DeleteObject
-                Resource: !Sub '${DocumentsBucket}/*'
+                Resource: 
+                  - !GetAtt DocumentsBucket.Arn
+                  - !Sub '${DocumentsBucket.Arn}/*'
 
   # Lambda Function for Backend API
   BackendLambda:
