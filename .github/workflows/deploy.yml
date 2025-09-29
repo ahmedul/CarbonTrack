@@ -181,38 +181,13 @@ jobs:
   deploy-backend:
     runs-on: ubuntu-latest
     needs: deploy-infrastructure
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/production'
+    if: false  # Skip backend deployment - Lambda not in simple template
     
     steps:
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v2
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: us-east-1
-        
-    - name: Download backend artifact
-      uses: actions/download-artifact@v4
-      with:
-        name: backend-lambda
-        
-    - name: Deploy to Lambda
+    - name: Skip backend deployment
       run: |
-        aws lambda update-function-code \
-          --function-name carbontrack-api \
-          --zip-file fileb://carbon-track-backend.zip
-          
-    - name: Update Lambda environment variables
-      run: |
-        aws lambda update-function-configuration \
-          --function-name carbontrack-api \
-          --environment Variables='{
-            "DATABASE_URL": "${{ secrets.DATABASE_URL }}",
-            "JWT_SECRET_KEY": "${{ secrets.JWT_SECRET_KEY }}",
-            "AWS_COGNITO_USER_POOL_ID": "${{ secrets.COGNITO_USER_POOL_ID }}",
-            "AWS_COGNITO_CLIENT_ID": "${{ secrets.COGNITO_CLIENT_ID }}",
-            "ENVIRONMENT": "production"
-          }'
+        echo "⏭️ Skipping backend deployment - Lambda not in current infrastructure"
+        echo "📝 TODO: Add Lambda to simple-template.yaml when ready for backend API"
 
   deploy-frontend:
     runs-on: ubuntu-latest
@@ -235,37 +210,37 @@ jobs:
         
     - name: Deploy to S3
       run: |
-        aws s3 sync dist/ s3://carbontrack-frontend-${{ secrets.ENVIRONMENT }} \
+        aws s3 sync dist/ s3://carbontrack-frontend-production \
           --delete \
           --cache-control "max-age=31536000" \
-          --exclude "*.html" \
-          --exclude "service-worker.js"
+          --exclude "*.html"
           
         # HTML files with shorter cache for updates
-        aws s3 sync dist/ s3://carbontrack-frontend-${{ secrets.ENVIRONMENT }} \
-          --delete \
+        aws s3 sync dist/ s3://carbontrack-frontend-production \
           --cache-control "max-age=0, no-cache, no-store, must-revalidate" \
-          --include "*.html" \
-          --include "service-worker.js"
+          --include "*.html"
           
-    - name: Invalidate CloudFront cache
+    - name: Display frontend URL
       run: |
-        aws cloudfront create-invalidation \
-          --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} \
-          --paths "/*"
+        echo "🌐 Frontend deployed successfully!"
+        echo "📍 URL: http://carbontrack-frontend-production.s3-website-us-east-1.amazonaws.com"
 
   notify:
     runs-on: ubuntu-latest
-    needs: [deploy-backend, deploy-frontend]
+    needs: [deploy-frontend]
     if: always()
     
     steps:
     - name: Notify deployment status
       run: |
-        if [ "${{ needs.deploy-backend.result }}" = "success" ] && [ "${{ needs.deploy-frontend.result }}" = "success" ]; then
-          echo "🚀 Deployment successful! CarbonTrack is now live."
-          echo "🌍 Frontend: https://${{ secrets.DOMAIN_NAME }}"
-          echo "🔗 API: ${{ secrets.PRODUCTION_API_URL }}"
+        if [ "${{ needs.deploy-frontend.result }}" = "success" ]; then
+          echo "🎉 CarbonTrack MVP deployment successful!"
+          echo "🌍 Frontend URL: http://carbontrack-frontend-production.s3-website-us-east-1.amazonaws.com"
+          echo "📦 S3 Bucket: carbontrack-frontend-production"
+          echo "�️ DynamoDB Tables: carbontrack-users-production, carbontrack-emissions-production"
+          echo ""
+          echo "✅ Infrastructure: S3 + DynamoDB ready"
+          echo "⏳ Backend API: Coming soon (Lambda to be added)"
         else
           echo "❌ Deployment failed. Check the logs above for details."
           exit 1
