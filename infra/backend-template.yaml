@@ -214,32 +214,6 @@ Resources:
     Properties:
       RestApiId: !Ref ApiGateway
       StageName: prod
-        - AttributeName: timestamp
-          KeyType: RANGE
-      BillingMode: PAY_PER_REQUEST
-      Tags:
-        - Key: Environment
-          Value: !Ref Environment
-        - Key: Application
-          Value: CarbonTrack
-
-  # DynamoDB Table for Users
-  UsersTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      TableName: !Sub 'carbontrack-users-${Environment}'
-      AttributeDefinitions:
-        - AttributeName: user_id
-          AttributeType: S
-      KeySchema:
-        - AttributeName: user_id
-          KeyType: HASH
-      BillingMode: PAY_PER_REQUEST
-      Tags:
-        - Key: Environment
-          Value: !Ref Environment
-        - Key: Application
-          Value: CarbonTrack
 
 Outputs:
   FrontendBucketName:
@@ -254,6 +228,12 @@ Outputs:
     Export:
       Name: !Sub '${AWS::StackName}-FrontendURL'
 
+  ApiGatewayURL:
+    Description: 'API Gateway endpoint URL'
+    Value: !Sub 'https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/prod'
+    Export:
+      Name: !Sub '${AWS::StackName}-ApiGatewayURL'
+
   CarbonDataTableName:
     Description: 'Name of the DynamoDB table for carbon data'
     Value: !Ref CarbonDataTable
@@ -265,3 +245,9 @@ Outputs:
     Value: !Ref UsersTable
     Export:
       Name: !Sub '${AWS::StackName}-UsersTable'
+
+  LambdaFunctionName:
+    Description: 'Name of the Lambda function'
+    Value: !Ref BackendLambda
+    Export:
+      Name: !Sub '${AWS::StackName}-LambdaFunction'
