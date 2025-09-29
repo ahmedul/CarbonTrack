@@ -173,11 +173,10 @@ jobs:
     - name: Deploy infrastructure with CloudFormation
       run: |
         aws cloudformation deploy \
-          --template-file infra/cloudformation-template.yaml \
+          --template-file infra/simple-template.yaml \
           --stack-name carbontrack-production \
           --parameter-overrides \
-            Environment=production \
-          --capabilities CAPABILITY_NAMED_IAM
+            Environment=production
 
   deploy-backend:
     runs-on: ubuntu-latest
