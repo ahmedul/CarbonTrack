@@ -298,6 +298,90 @@
                     </form>
                     <div class="mt-6 pt-6 border-t border-gray-200 text-center">
                         <p class="text-sm text-gray-600">Demo credentials: demo@carbontrack.dev / DemoUser123!</p>
+                        <p class="text-sm text-gray-500 mt-2">
+                            Don't have an account? 
+                            <button @click="currentView = 'register'" class="text-blue-600 hover:text-blue-800 font-semibold">
+                                Sign up here
+                            </button>
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Registration View -->
+            <div v-if="currentView === 'register' && !isAuthenticated" class="max-w-lg mx-auto fade-in">
+                <div class="glass-effect rounded-2xl shadow-2xl p-8 card-hover">
+                    <div class="text-center mb-8">
+                        <div class="w-16 h-16 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <span class="text-2xl text-white">📝</span>
+                        </div>
+                        <h2 class="text-3xl font-bold text-gray-800 mb-2">Join CarbonTrack</h2>
+                        <p class="text-gray-600">Create your account to start tracking your carbon footprint</p>
+                    </div>
+                    <form @submit.prevent="register" class="space-y-6">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-gray-700 text-sm font-semibold mb-3">First Name</label>
+                                <input v-model="registerForm.firstName" type="text" required
+                                       placeholder="Enter first name"
+                                       class="w-full px-4 py-3 input-field rounded-xl focus:outline-none bg-white/70">
+                            </div>
+                            <div>
+                                <label class="block text-gray-700 text-sm font-semibold mb-3">Last Name</label>
+                                <input v-model="registerForm.lastName" type="text" required
+                                       placeholder="Enter last name"
+                                       class="w-full px-4 py-3 input-field rounded-xl focus:outline-none bg-white/70">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 text-sm font-semibold mb-3">Email Address</label>
+                            <input v-model="registerForm.email" type="email" required
+                                   placeholder="Enter your email"
+                                   class="w-full px-4 py-3 input-field rounded-xl focus:outline-none bg-white/70">
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 text-sm font-semibold mb-3">Password</label>
+                            <input v-model="registerForm.password" type="password" required
+                                   placeholder="Create a strong password"
+                                   class="w-full px-4 py-3 input-field rounded-xl focus:outline-none bg-white/70">
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 text-sm font-semibold mb-3">Confirm Password</label>
+                            <input v-model="registerForm.confirmPassword" type="password" required
+                                   placeholder="Confirm your password"
+                                   class="w-full px-4 py-3 input-field rounded-xl focus:outline-none bg-white/70">
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 text-sm font-semibold mb-3">Organization (Optional)</label>
+                            <input v-model="registerForm.organization" type="text"
+                                   placeholder="Company or organization name"
+                                   class="w-full px-4 py-3 input-field rounded-xl focus:outline-none bg-white/70">
+                        </div>
+                        <div class="flex items-start space-x-3">
+                            <input v-model="registerForm.acceptTerms" type="checkbox" required class="mt-1 w-4 h-4 text-green-600">
+                            <label class="text-sm text-gray-700">
+                                I agree to the <a href="#" class="text-green-600 hover:text-green-800 font-semibold">Terms of Service</a> 
+                                and <a href="#" class="text-green-600 hover:text-green-800 font-semibold">Privacy Policy</a>
+                            </label>
+                        </div>
+                        <button type="submit" :disabled="!isRegistrationValid" 
+                                :class="{'opacity-50 cursor-not-allowed': !isRegistrationValid}"
+                                class="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white py-3 rounded-xl font-semibold text-lg shadow-lg transition-all duration-200">
+                            Create Account
+                        </button>
+                    </form>
+                    <div class="mt-6 pt-6 border-t border-gray-200 text-center">
+                        <p class="text-sm text-gray-600">
+                            Already have an account? 
+                            <button @click="currentView = 'login'" class="text-blue-600 hover:text-blue-800 font-semibold">
+                                Sign in here
+                            </button>
+                        </p>
+                        <div class="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                            <p class="text-xs text-yellow-800">
+                                <span class="font-semibold">Note:</span> New registrations require admin approval before access is granted.
+                            </p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -648,6 +732,224 @@
                             💾 Update Profile
                         </button>
                     </form>
+                </div>
+            </div>
+
+            <!-- Admin Panel View -->
+            <div v-if="currentView === 'admin' && isAuthenticated && userProfile.role === 'admin'" class="fade-in">
+                <div class="max-w-6xl mx-auto">
+                    <!-- Admin Header -->
+                    <div class="glass-effect rounded-2xl shadow-2xl p-8 mb-8 card-hover">
+                        <div class="text-center">
+                            <div class="w-16 h-16 bg-gradient-to-br from-purple-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-6">
+                                <span class="text-3xl text-white">⚙️</span>
+                            </div>
+                            <h2 class="text-4xl font-bold text-gray-800 mb-4">Admin Panel</h2>
+                            <p class="text-xl text-gray-600 mb-6">Manage users, registrations, and system settings</p>
+                        </div>
+                        
+                        <!-- Admin Stats -->
+                        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mt-8">
+                            <div class="bg-blue-50 rounded-xl p-6 text-center">
+                                <div class="text-3xl text-blue-600 mb-2">{{ adminStats.totalUsers }}</div>
+                                <div class="text-sm text-gray-600 font-semibold">Total Users</div>
+                            </div>
+                            <div class="bg-yellow-50 rounded-xl p-6 text-center">
+                                <div class="text-3xl text-yellow-600 mb-2">{{ adminStats.pendingRegistrations }}</div>
+                                <div class="text-sm text-gray-600 font-semibold">Pending Registrations</div>
+                            </div>
+                            <div class="bg-green-50 rounded-xl p-6 text-center">
+                                <div class="text-3xl text-green-600 mb-2">{{ adminStats.activeThisMonth }}</div>
+                                <div class="text-sm text-gray-600 font-semibold">Active This Month</div>
+                            </div>
+                            <div class="bg-purple-50 rounded-xl p-6 text-center">
+                                <div class="text-3xl text-purple-600 mb-2">{{ adminStats.totalCarbonTracked }}</div>
+                                <div class="text-sm text-gray-600 font-semibold">CO2 Tracked (kg)</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Admin Navigation -->
+                    <div class="glass-effect rounded-2xl shadow-2xl p-6 mb-8">
+                        <div class="flex space-x-4 overflow-x-auto">
+                            <button @click="adminTab = 'pending'" 
+                                    :class="{'bg-purple-500 text-white': adminTab === 'pending', 'bg-white text-gray-700': adminTab !== 'pending'}"
+                                    class="px-6 py-3 rounded-xl font-semibold whitespace-nowrap transition-all duration-200 shadow-lg hover:shadow-xl">
+                                📋 Pending Registrations ({{ pendingUsers.length }})
+                            </button>
+                            <button @click="adminTab = 'users'" 
+                                    :class="{'bg-purple-500 text-white': adminTab === 'users', 'bg-white text-gray-700': adminTab !== 'users'}"
+                                    class="px-6 py-3 rounded-xl font-semibold whitespace-nowrap transition-all duration-200 shadow-lg hover:shadow-xl">
+                                👥 All Users
+                            </button>
+                            <button @click="adminTab = 'analytics'" 
+                                    :class="{'bg-purple-500 text-white': adminTab === 'analytics', 'bg-white text-gray-700': adminTab !== 'analytics'}"
+                                    class="px-6 py-3 rounded-xl font-semibold whitespace-nowrap transition-all duration-200 shadow-lg hover:shadow-xl">
+                                📊 Analytics
+                            </button>
+                            <button @click="adminTab = 'settings'" 
+                                    :class="{'bg-purple-500 text-white': adminTab === 'settings', 'bg-white text-gray-700': adminTab !== 'settings'}"
+                                    class="px-6 py-3 rounded-xl font-semibold whitespace-nowrap transition-all duration-200 shadow-lg hover:shadow-xl">
+                                ⚙️ Settings
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Pending Registrations Tab -->
+                    <div v-if="adminTab === 'pending'" class="glass-effect rounded-2xl shadow-2xl p-8">
+                        <h3 class="text-2xl font-bold text-gray-800 mb-6">Pending Registration Approvals</h3>
+                        
+                        <div v-if="pendingUsers.length === 0" class="text-center py-12">
+                            <div class="text-6xl mb-4">✅</div>
+                            <p class="text-xl text-gray-600">No pending registrations</p>
+                            <p class="text-gray-500">All registration requests have been processed</p>
+                        </div>
+                        
+                        <div v-else class="space-y-4">
+                            <div v-for="user in pendingUsers" :key="user.id" 
+                                 class="bg-white rounded-xl p-6 border border-gray-200 hover:shadow-lg transition-all duration-200">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center space-x-4">
+                                        <div class="w-12 h-12 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center">
+                                            <span class="text-white font-bold text-lg">{{ user.firstName[0] }}{{ user.lastName[0] }}</span>
+                                        </div>
+                                        <div>
+                                            <h4 class="font-semibold text-lg text-gray-800">{{ user.firstName }} {{ user.lastName }}</h4>
+                                            <p class="text-gray-600">{{ user.email }}</p>
+                                            <p class="text-sm text-gray-500" v-if="user.organization">{{ user.organization }}</p>
+                                            <p class="text-xs text-gray-400">Registered: {{ formatDate(user.registeredAt) }}</p>
+                                        </div>
+                                    </div>
+                                    <div class="flex space-x-3">
+                                        <button @click="approveUser(user.id)" 
+                                                class="px-6 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg font-semibold transition-all duration-200 shadow-lg">
+                                            ✅ Approve
+                                        </button>
+                                        <button @click="rejectUser(user.id)" 
+                                                class="px-6 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-semibold transition-all duration-200 shadow-lg">
+                                            ❌ Reject
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- All Users Tab -->
+                    <div v-if="adminTab === 'users'" class="glass-effect rounded-2xl shadow-2xl p-8">
+                        <div class="flex justify-between items-center mb-6">
+                            <h3 class="text-2xl font-bold text-gray-800">All Users</h3>
+                            <div class="flex space-x-4">
+                                <select v-model="userFilter" class="px-4 py-2 border border-gray-300 rounded-lg">
+                                    <option value="all">All Users</option>
+                                    <option value="active">Active Users</option>
+                                    <option value="inactive">Inactive Users</option>
+                                    <option value="admins">Admins</option>
+                                </select>
+                                <input v-model="userSearch" placeholder="Search users..." 
+                                       class="px-4 py-2 border border-gray-300 rounded-lg">
+                            </div>
+                        </div>
+
+                        <div class="overflow-x-auto">
+                            <table class="w-full">
+                                <thead>
+                                    <tr class="bg-gray-50">
+                                        <th class="px-6 py-4 text-left text-sm font-semibold text-gray-600">User</th>
+                                        <th class="px-6 py-4 text-left text-sm font-semibold text-gray-600">Status</th>
+                                        <th class="px-6 py-4 text-left text-sm font-semibold text-gray-600">Role</th>
+                                        <th class="px-6 py-4 text-left text-sm font-semibold text-gray-600">Last Active</th>
+                                        <th class="px-6 py-4 text-left text-sm font-semibold text-gray-600">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="user in filteredUsers" :key="user.id" class="border-t border-gray-200 hover:bg-gray-50">
+                                        <td class="px-6 py-4">
+                                            <div class="flex items-center space-x-3">
+                                                <div class="w-10 h-10 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center">
+                                                    <span class="text-white font-bold">{{ user.name[0] }}</span>
+                                                </div>
+                                                <div>
+                                                    <div class="font-semibold text-gray-800">{{ user.name }}</div>
+                                                    <div class="text-sm text-gray-600">{{ user.email }}</div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td class="px-6 py-4">
+                                            <span :class="{'bg-green-100 text-green-800': user.status === 'active', 
+                                                           'bg-gray-100 text-gray-800': user.status === 'inactive'}"
+                                                  class="px-3 py-1 rounded-full text-sm font-semibold">
+                                                {{ user.status }}
+                                            </span>
+                                        </td>
+                                        <td class="px-6 py-4">
+                                            <span :class="{'bg-purple-100 text-purple-800': user.role === 'admin', 
+                                                           'bg-blue-100 text-blue-800': user.role === 'user'}"
+                                                  class="px-3 py-1 rounded-full text-sm font-semibold">
+                                                {{ user.role }}
+                                            </span>
+                                        </td>
+                                        <td class="px-6 py-4 text-sm text-gray-600">{{ formatDate(user.lastActive) }}</td>
+                                        <td class="px-6 py-4">
+                                            <div class="flex space-x-2">
+                                                <button @click="editUser(user.id)" 
+                                                        class="px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded text-sm">
+                                                    Edit
+                                                </button>
+                                                <button v-if="user.role !== 'admin'" @click="toggleUserStatus(user.id)" 
+                                                        :class="{'bg-red-500 hover:bg-red-600': user.status === 'active', 
+                                                                'bg-green-500 hover:bg-green-600': user.status === 'inactive'}"
+                                                        class="px-3 py-1 text-white rounded text-sm">
+                                                    {{ user.status === 'active' ? 'Deactivate' : 'Activate' }}
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Analytics Tab -->
+                    <div v-if="adminTab === 'analytics'" class="glass-effect rounded-2xl shadow-2xl p-8">
+                        <h3 class="text-2xl font-bold text-gray-800 mb-6">System Analytics</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div class="bg-white rounded-xl p-6 border border-gray-200">
+                                <h4 class="font-semibold text-lg mb-4">User Growth</h4>
+                                <div class="text-3xl font-bold text-blue-600 mb-2">+24</div>
+                                <p class="text-sm text-gray-600">New users this month</p>
+                            </div>
+                            <div class="bg-white rounded-xl p-6 border border-gray-200">
+                                <h4 class="font-semibold text-lg mb-4">Carbon Impact</h4>
+                                <div class="text-3xl font-bold text-green-600 mb-2">2,847 kg</div>
+                                <p class="text-sm text-gray-600">Total CO2 tracked</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Settings Tab -->
+                    <div v-if="adminTab === 'settings'" class="glass-effect rounded-2xl shadow-2xl p-8">
+                        <h3 class="text-2xl font-bold text-gray-800 mb-6">System Settings</h3>
+                        <div class="space-y-6">
+                            <div class="bg-white rounded-xl p-6 border border-gray-200">
+                                <h4 class="font-semibold text-lg mb-4">Registration Settings</h4>
+                                <div class="space-y-4">
+                                    <label class="flex items-center space-x-3">
+                                        <input v-model="systemSettings.requireApproval" type="checkbox" class="w-4 h-4">
+                                        <span>Require admin approval for new registrations</span>
+                                    </label>
+                                    <label class="flex items-center space-x-3">
+                                        <input v-model="systemSettings.allowSelfRegistration" type="checkbox" class="w-4 h-4">
+                                        <span>Allow self-registration</span>
+                                    </label>
+                                </div>
+                            </div>
+                            <button @click="saveSettings" 
+                                    class="px-6 py-3 bg-purple-500 hover:bg-purple-600 text-white rounded-xl font-semibold">
+                                💾 Save Settings
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
 

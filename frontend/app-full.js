@@ -32,6 +32,16 @@ const app = createApp({
                 password: 'password123'
             },
             
+            registerForm: {
+                firstName: '',
+                lastName: '',
+                email: '',
+                password: '',
+                confirmPassword: '',
+                organization: '',
+                acceptTerms: false
+            },
+            
             emissionForm: {
                 category: '',
                 activity: '',
@@ -141,6 +151,73 @@ const app = createApp({
                 total_activities: 0,
                 carbon_saved_kg: 0,
                 goals_achieved: 0
+            },
+            
+            // Admin Panel Data
+            adminTab: 'pending',
+            adminStats: {
+                totalUsers: 156,
+                pendingRegistrations: 8,
+                activeThisMonth: 42,
+                totalCarbonTracked: 2847
+            },
+            pendingUsers: [
+                {
+                    id: 'pending_1',
+                    firstName: 'Sarah',
+                    lastName: 'Johnson',
+                    email: 'sarah.johnson@example.com',
+                    organization: 'Green Tech Inc.',
+                    registeredAt: '2025-09-29T10:30:00Z'
+                },
+                {
+                    id: 'pending_2',
+                    firstName: 'Michael',
+                    lastName: 'Chen',
+                    email: 'michael.chen@university.edu',
+                    organization: 'University Research Lab',
+                    registeredAt: '2025-09-29T15:45:00Z'
+                },
+                {
+                    id: 'pending_3',
+                    firstName: 'Emma',
+                    lastName: 'Davis',
+                    email: 'emma.davis@startup.co',
+                    organization: 'EcoSolutions Startup',
+                    registeredAt: '2025-09-30T09:15:00Z'
+                }
+            ],
+            allUsers: [
+                {
+                    id: 'user_1',
+                    name: 'Demo User',
+                    email: 'demo@carbontrack.dev',
+                    status: 'active',
+                    role: 'admin',
+                    lastActive: '2025-09-30T12:00:00Z'
+                },
+                {
+                    id: 'user_2',
+                    name: 'Alex Thompson',
+                    email: 'alex@greencompany.com',
+                    status: 'active',
+                    role: 'user',
+                    lastActive: '2025-09-29T18:30:00Z'
+                },
+                {
+                    id: 'user_3',
+                    name: 'Lisa Rodriguez',
+                    email: 'lisa@ecofirm.org',
+                    status: 'inactive',
+                    role: 'user',
+                    lastActive: '2025-09-15T14:20:00Z'
+                }
+            ],
+            userFilter: 'all',
+            userSearch: '',
+            systemSettings: {
+                requireApproval: true,
+                allowSelfRegistration: true
             }
         };
     },
@@ -158,6 +235,39 @@ const app = createApp({
                 lb.period === this.selectedLeaderboardPeriod || 
                 (this.selectedLeaderboardPeriod === 'all_time' && lb.period === 'all_time')
             );
+        },
+        
+        isRegistrationValid() {
+            return this.registerForm.firstName.trim() &&
+                   this.registerForm.lastName.trim() &&
+                   this.registerForm.email.trim() &&
+                   this.registerForm.password.length >= 8 &&
+                   this.registerForm.password === this.registerForm.confirmPassword &&
+                   this.registerForm.acceptTerms;
+        },
+        
+        filteredUsers() {
+            let filtered = this.allUsers;
+            
+            // Apply status filter
+            if (this.userFilter !== 'all') {
+                if (this.userFilter === 'admins') {
+                    filtered = filtered.filter(user => user.role === 'admin');
+                } else {
+                    filtered = filtered.filter(user => user.status === this.userFilter);
+                }
+            }
+            
+            // Apply search filter
+            if (this.userSearch.trim()) {
+                const search = this.userSearch.toLowerCase();
+                filtered = filtered.filter(user => 
+                    user.name.toLowerCase().includes(search) ||
+                    user.email.toLowerCase().includes(search)
+                );
+            }
+            
+            return filtered;
         }
     },
     
@@ -194,7 +304,8 @@ const app = createApp({
                     user_id: 'demo-user',
                     email: this.loginForm.email,
                     full_name: 'Demo User',
-                    carbon_budget: 500
+                    carbon_budget: 500,
+                    role: 'admin'  // Make demo user an admin
                 };
                 localStorage.setItem('carbontrack_token', 'demo-token-123');
                 
@@ -229,7 +340,8 @@ const app = createApp({
                 user_id: 'demo-user',
                 email: 'demo@carbontrack.dev',
                 full_name: 'Demo User',
-                carbon_budget: 500
+                carbon_budget: 500,
+                role: 'admin'
             };
         },
         
@@ -848,6 +960,140 @@ const app = createApp({
             this.loadGamificationProfile();
             this.loadAchievements();
             this.loadLeaderboards();
+        },
+        
+        // Registration Methods
+        async register() {
+            if (!this.isRegistrationValid) {
+                this.showNotification('Please fill in all required fields correctly', 'error');
+                return;
+            }
+            
+            this.loading = true;
+            try {
+                // Simulate API call for registration
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                // In real implementation, this would call the backend API
+                console.log('Registration data:', this.registerForm);
+                
+                this.showNotification(
+                    'Registration successful! Please wait for admin approval before logging in.',
+                    'success'
+                );
+                
+                // Reset form and redirect to login
+                this.registerForm = {
+                    firstName: '',
+                    lastName: '',
+                    email: '',
+                    password: '',
+                    confirmPassword: '',
+                    organization: '',
+                    acceptTerms: false
+                };
+                
+                this.currentView = 'login';
+                
+            } catch (error) {
+                console.error('Registration error:', error);
+                this.showNotification('Registration failed. Please try again.', 'error');
+            } finally {
+                this.loading = false;
+            }
+        },
+        
+        // Admin Methods
+        async approveUser(userId) {
+            try {
+                // Simulate API call
+                await new Promise(resolve => setTimeout(resolve, 500));
+                
+                // Find and remove from pending
+                const userIndex = this.pendingUsers.findIndex(user => user.id === userId);
+                if (userIndex !== -1) {
+                    const user = this.pendingUsers[userIndex];
+                    
+                    // Add to approved users
+                    this.allUsers.push({
+                        id: `approved_${Date.now()}`,
+                        name: `${user.firstName} ${user.lastName}`,
+                        email: user.email,
+                        status: 'active',
+                        role: 'user',
+                        lastActive: new Date().toISOString()
+                    });
+                    
+                    // Remove from pending
+                    this.pendingUsers.splice(userIndex, 1);
+                    
+                    // Update stats
+                    this.adminStats.pendingRegistrations--;
+                    this.adminStats.totalUsers++;
+                    
+                    this.showNotification('User approved successfully!', 'success');
+                }
+            } catch (error) {
+                console.error('Error approving user:', error);
+                this.showNotification('Failed to approve user', 'error');
+            }
+        },
+        
+        async rejectUser(userId) {
+            try {
+                // Simulate API call
+                await new Promise(resolve => setTimeout(resolve, 500));
+                
+                // Remove from pending
+                const userIndex = this.pendingUsers.findIndex(user => user.id === userId);
+                if (userIndex !== -1) {
+                    this.pendingUsers.splice(userIndex, 1);
+                    this.adminStats.pendingRegistrations--;
+                    this.showNotification('User registration rejected', 'success');
+                }
+            } catch (error) {
+                console.error('Error rejecting user:', error);
+                this.showNotification('Failed to reject user', 'error');
+            }
+        },
+        
+        editUser(userId) {
+            // Placeholder for user edit functionality
+            this.showNotification('User edit functionality coming soon', 'info');
+        },
+        
+        async toggleUserStatus(userId) {
+            try {
+                // Simulate API call
+                await new Promise(resolve => setTimeout(resolve, 500));
+                
+                const user = this.allUsers.find(u => u.id === userId);
+                if (user) {
+                    user.status = user.status === 'active' ? 'inactive' : 'active';
+                    this.showNotification(`User ${user.status === 'active' ? 'activated' : 'deactivated'} successfully`, 'success');
+                }
+            } catch (error) {
+                console.error('Error toggling user status:', error);
+                this.showNotification('Failed to update user status', 'error');
+            }
+        },
+        
+        async saveSettings() {
+            try {
+                // Simulate API call
+                await new Promise(resolve => setTimeout(resolve, 500));
+                
+                console.log('Saving settings:', this.systemSettings);
+                this.showNotification('Settings saved successfully!', 'success');
+            } catch (error) {
+                console.error('Error saving settings:', error);
+                this.showNotification('Failed to save settings', 'error');
+            }
+        },
+        
+        formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
         }
     }
 });
