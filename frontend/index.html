@@ -209,39 +209,58 @@
                         </div>
                     </div>
                     <div class="flex space-x-2">
-                        <button @click="currentView = 'dashboard'" 
-                                :class="{'bg-white/30 shadow-lg': currentView === 'dashboard'}"
-                                class="px-4 py-2.5 rounded-xl hover:bg-white/20 transition-all duration-200 font-medium text-sm backdrop-blur-sm">
-                            📊 Dashboard
-                        </button>
-                        <button @click="currentView = 'input'" 
-                                :class="{'bg-white/30 shadow-lg': currentView === 'input'}"
-                                class="px-4 py-2.5 rounded-xl hover:bg-white/20 transition-all duration-200 font-medium text-sm backdrop-blur-sm">
-                            ➕ Add Entry
-                        </button>
-                        <button @click="currentView = 'recommendations'" 
-                                :class="{'bg-white/30 shadow-lg': currentView === 'recommendations'}"
-                                class="px-4 py-2.5 rounded-xl hover:bg-white/20 transition-all duration-200 font-medium text-sm backdrop-blur-sm">
-                            💡 Recommendations
-                        </button>
-                        <button @click="currentView = 'gamification'" 
-                                :class="{'bg-white/30 shadow-lg': currentView === 'gamification'}"
-                                class="px-4 py-2.5 rounded-xl hover:bg-white/20 transition-all duration-200 font-medium text-sm backdrop-blur-sm">
-                            🏆 Achievements
-                        </button>
-                        <button @click="currentView = 'profile'" 
-                                :class="{'bg-white/30 shadow-lg': currentView === 'profile'}"
-                                class="px-4 py-2.5 rounded-xl hover:bg-white/20 transition-all duration-200 font-medium text-sm backdrop-blur-sm">
-                            👤 Profile
-                        </button>
-                        <button v-if="!isAuthenticated" @click="currentView = 'login'" 
-                                class="px-4 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 transition-all duration-200 font-medium text-sm backdrop-blur-sm border border-white/30">
-                            🔐 Login
-                        </button>
-                        <button v-else @click="logout" 
-                                class="px-4 py-2.5 rounded-xl bg-red-500/80 hover:bg-red-600/80 transition-all duration-200 font-medium text-sm backdrop-blur-sm">
-                            🚪 Logout
-                        </button>
+                        <!-- Authenticated User Menu -->
+                        <template v-if="isAuthenticated">
+                            <button @click="currentView = 'dashboard'" 
+                                    :class="{'bg-white/30 shadow-lg': currentView === 'dashboard'}"
+                                    class="px-4 py-2.5 rounded-xl hover:bg-white/20 transition-all duration-200 font-medium text-sm backdrop-blur-sm">
+                                📊 Dashboard
+                            </button>
+                            <button @click="currentView = 'input'" 
+                                    :class="{'bg-white/30 shadow-lg': currentView === 'input'}"
+                                    class="px-4 py-2.5 rounded-xl hover:bg-white/20 transition-all duration-200 font-medium text-sm backdrop-blur-sm">
+                                ➕ Add Entry
+                            </button>
+                            <button @click="currentView = 'recommendations'" 
+                                    :class="{'bg-white/30 shadow-lg': currentView === 'recommendations'}"
+                                    class="px-4 py-2.5 rounded-xl hover:bg-white/20 transition-all duration-200 font-medium text-sm backdrop-blur-sm">
+                                💡 Recommendations
+                            </button>
+                            <button @click="currentView = 'gamification'" 
+                                    :class="{'bg-white/30 shadow-lg': currentView === 'gamification'}"
+                                    class="px-4 py-2.5 rounded-xl hover:bg-white/20 transition-all duration-200 font-medium text-sm backdrop-blur-sm">
+                                🏆 Achievements
+                            </button>
+                            <button @click="currentView = 'profile'" 
+                                    :class="{'bg-white/30 shadow-lg': currentView === 'profile'}"
+                                    class="px-4 py-2.5 rounded-xl hover:bg-white/20 transition-all duration-200 font-medium text-sm backdrop-blur-sm">
+                                👤 Profile
+                            </button>
+                            <!-- Admin Panel Button (only for admin users) -->
+                            <button v-if="userProfile.role === 'admin'" @click="currentView = 'admin'" 
+                                    :class="{'bg-white/30 shadow-lg': currentView === 'admin'}"
+                                    class="px-4 py-2.5 rounded-xl hover:bg-white/20 transition-all duration-200 font-medium text-sm backdrop-blur-sm border border-yellow-300/50">
+                                ⚙️ Admin
+                            </button>
+                            <button @click="logout" 
+                                    class="px-4 py-2.5 rounded-xl bg-red-500/80 hover:bg-red-600/80 transition-all duration-200 font-medium text-sm backdrop-blur-sm">
+                                🚪 Logout
+                            </button>
+                        </template>
+                        
+                        <!-- Unauthenticated User Menu -->
+                        <template v-else>
+                            <button @click="currentView = 'login'" 
+                                    :class="{'bg-white/30 shadow-lg': currentView === 'login'}"
+                                    class="px-4 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 transition-all duration-200 font-medium text-sm backdrop-blur-sm border border-white/30">
+                                🔐 Login
+                            </button>
+                            <button @click="currentView = 'register'" 
+                                    :class="{'bg-white/30 shadow-lg': currentView === 'register'}"
+                                    class="px-4 py-2.5 rounded-xl bg-green-500/80 hover:bg-green-600/80 transition-all duration-200 font-medium text-sm backdrop-blur-sm border border-green-300/50">
+                                � Register
+                            </button>
+                        </template>
                     </div>
                 </div>
             </div>
