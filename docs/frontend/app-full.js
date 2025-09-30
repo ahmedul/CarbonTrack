@@ -295,9 +295,13 @@ const app = createApp({
         },
         // Authentication methods
         login() {
-            console.log('Login attempt for:', this.loginForm.email);
+            console.log('=== LOGIN ATTEMPT ===');
+            console.log('Email:', this.loginForm.email);
+            console.log('Password length:', this.loginForm.password.length);
+            console.log('Is authenticated before login:', this.isAuthenticated);
+            console.log('Current view:', this.currentView);
             
-            // Check demo user first
+            // Check demo user first (regular user)
             if (this.loginForm.email === 'demo@carbontrack.dev' && this.loginForm.password === 'password123') {
                 this.isAuthenticated = true;
                 this.currentView = 'dashboard';
@@ -306,7 +310,7 @@ const app = createApp({
                     email: this.loginForm.email,
                     full_name: 'Demo User',
                     carbon_budget: 500,
-                    role: 'admin'  // Make demo user an admin
+                    role: 'user'  // Regular user, not admin
                 };
                 localStorage.setItem('carbontrack_token', 'demo-token-123');
                 
@@ -317,6 +321,27 @@ const app = createApp({
                 this.loadGamificationData();
                 
                 this.showNotification('Login successful! Welcome to CarbonTrack.', 'success');
+                this.initializeChart();
+            } else if (this.loginForm.email === 'ahmedulkabir55@gmail.com' && this.loginForm.password === '*king*55') {
+                // Admin user login
+                this.isAuthenticated = true;
+                this.currentView = 'dashboard';
+                this.userProfile = {
+                    user_id: 'admin-user',
+                    email: this.loginForm.email,
+                    full_name: 'Ahmed Ul Kabir',
+                    carbon_budget: 500,
+                    role: 'admin'  // Full admin access
+                };
+                localStorage.setItem('carbontrack_token', 'admin-token-123');
+                
+                // Load initial sample data
+                this.loadEmissions();
+                this.loadRecommendations();
+                this.loadRecommendationStats();
+                this.loadGamificationData();
+                
+                this.showNotification('Welcome back, Admin! You have full access to all features.', 'success');
                 this.initializeChart();
             } else {
                 // Check approved users
@@ -353,15 +378,40 @@ const app = createApp({
         },
         
         logout() {
-            console.log('Logging out user');
+            console.log('=== LOGOUT PROCESS ===');
+            console.log('Before logout - isAuthenticated:', this.isAuthenticated);
+            console.log('Before logout - currentView:', this.currentView);
+            
             this.isAuthenticated = false;
             this.currentView = 'login';
-            this.userProfile = { user_id: '', email: '', full_name: '', carbon_budget: 500 };
+            this.userProfile = { user_id: '', email: '', full_name: '', carbon_budget: 500, role: 'user' };
             localStorage.removeItem('carbontrack_token');
+            
+            // Reset login form
             this.loginForm = { email: '', password: '' };
+            
+            // Reset any loading states
+            this.loading = false;
+            
+            console.log('After logout - isAuthenticated:', this.isAuthenticated);
+            console.log('After logout - currentView:', this.currentView);
+            console.log('After logout - loginForm:', this.loginForm);
+            
             this.showNotification('You have been logged out successfully.', 'success');
         },
-        
+
+        // Debug method to reset login state
+        resetLoginState() {
+            console.log('=== RESETTING LOGIN STATE ===');
+            this.isAuthenticated = false;
+            this.currentView = 'login';
+            this.loginForm = { email: '', password: '' };
+            this.userProfile = { user_id: '', email: '', full_name: '', carbon_budget: 500, role: 'user' };
+            this.loading = false;
+            localStorage.removeItem('carbontrack_token');
+            console.log('Login state reset complete');
+        },
+
         // Data loading methods
         loadUserData() {
             console.log('Loading user profile data');

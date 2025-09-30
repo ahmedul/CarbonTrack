@@ -297,13 +297,22 @@
                         </button>
                     </form>
                     <div class="mt-6 pt-6 border-t border-gray-200 text-center">
-                        <p class="text-sm text-gray-600">Demo credentials: demo@carbontrack.dev / DemoUser123!</p>
+                        <div class="text-sm text-gray-600 space-y-1">
+                            <p><strong>Demo User:</strong> demo@carbontrack.dev / password123</p>
+                            <p><strong>Admin User:</strong> ahmedulkabir55@gmail.com / *king*55</p>
+                        </div>
                         <p class="text-sm text-gray-500 mt-2">
                             Don't have an account? 
                             <button @click="currentView = 'register'" class="text-blue-600 hover:text-blue-800 font-semibold">
                                 Sign up here
                             </button>
                         </p>
+                        
+                        <!-- Debug buttons (temporary) -->
+                        <div class="mt-4 p-3 bg-gray-100 rounded-lg text-xs">
+                            <p><strong>Debug:</strong> Auth: {{ isAuthenticated }}, View: {{ currentView }}</p>
+                            <button @click="resetLoginState" class="mt-1 px-2 py-1 bg-red-500 text-white text-xs rounded">Reset Login State</button>
+                        </div>
                     </div>
                 </div>
             </div>
