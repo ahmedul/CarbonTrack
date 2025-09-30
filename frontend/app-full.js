@@ -964,6 +964,10 @@ const app = createApp({
         
         // Registration Methods
         async register() {
+            console.log('Register method called');
+            console.log('Registration form data:', this.registerForm);
+            console.log('Is registration valid?', this.isRegistrationValid);
+            
             if (!this.isRegistrationValid) {
                 this.showNotification('Please fill in all required fields correctly', 'error');
                 return;

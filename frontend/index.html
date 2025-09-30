@@ -366,10 +366,24 @@
                         </div>
                         <button type="submit" :disabled="!isRegistrationValid" 
                                 :class="{'opacity-50 cursor-not-allowed': !isRegistrationValid}"
+                                @click="console.log('Register button clicked!', isRegistrationValid)"
                                 class="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white py-3 rounded-xl font-semibold text-lg shadow-lg transition-all duration-200">
-                            Create Account
+                            Create Account {{ isRegistrationValid ? '✓' : '✗' }}
                         </button>
                     </form>
+                    
+                    <!-- Debug Information (temporary) -->
+                    <div class="mt-4 p-3 bg-gray-50 border rounded-lg text-xs">
+                        <p><strong>Debug Info:</strong></p>
+                        <p>First Name: {{ registerForm.firstName || 'empty' }}</p>
+                        <p>Last Name: {{ registerForm.lastName || 'empty' }}</p>
+                        <p>Email: {{ registerForm.email || 'empty' }}</p>
+                        <p>Password Length: {{ registerForm.password.length }}</p>
+                        <p>Passwords Match: {{ registerForm.password === registerForm.confirmPassword }}</p>
+                        <p>Terms Accepted: {{ registerForm.acceptTerms }}</p>
+                        <p>Valid: {{ isRegistrationValid }}</p>
+                    </div>
+                    
                     <div class="mt-6 pt-6 border-t border-gray-200 text-center">
                         <p class="text-sm text-gray-600">
                             Already have an account? 
@@ -1331,7 +1345,7 @@
             </div>
 
             <!-- Not Authenticated Message -->
-            <div v-if="!isAuthenticated && currentView !== 'login'" class="text-center fade-in">
+            <div v-if="!isAuthenticated && currentView !== 'login' && currentView !== 'register'" class="text-center fade-in">
                 <div class="glass-effect rounded-2xl shadow-2xl p-12 max-w-2xl mx-auto card-hover">
                     <div class="w-24 h-24 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center mx-auto mb-8">
                         <span class="text-4xl text-white">🌍</span>
