@@ -16,7 +16,7 @@ const app = createApp({
             currentView: 'dashboard',
             isAuthenticated: false,
             authToken: null,
-            apiBase: 'http://localhost:8000/api/v1',
+            apiBase: 'https://ahzh0n0k6c.execute-api.us-east-1.amazonaws.com/prod/api/v1',
             
             // User data
             userProfile: {
@@ -95,8 +95,34 @@ const app = createApp({
             notifications: [],
             
             // Loading states
-            loading: false
+            loading: false,
+            
+            // Recommendations
+            recommendations: [],
+            selectedCategory: null,
+            recommendationCategories: {
+                transportation: { name: 'Transportation', description: 'Reduce emissions from travel', icon: '🚗' },
+                energy: { name: 'Energy', description: 'Optimize energy usage', icon: '⚡' },
+                food: { name: 'Food & Diet', description: 'Sustainable dietary choices', icon: '🥗' },
+                waste: { name: 'Waste', description: 'Reduce, reuse, recycle', icon: '♻️' },
+                lifestyle: { name: 'Lifestyle', description: 'Sustainable living', icon: '🌱' }
+            },
+            recommendationStats: {
+                totalRecommendations: 0,
+                potentialSavings: 0,
+                quickWins: 0,
+                highImpact: 0
+            }
         };
+    },
+    
+    computed: {
+        filteredRecommendations() {
+            if (!this.selectedCategory) {
+                return this.recommendations;
+            }
+            return this.recommendations.filter(rec => rec.category === this.selectedCategory);
+        }
     },
     
     mounted() {
@@ -108,6 +134,8 @@ const app = createApp({
             this.isAuthenticated = true;
             this.loadUserData();
             this.loadEmissions();
+            this.loadRecommendations();
+            this.loadRecommendationStats();
         }
         this.initializeChart();
     },
@@ -136,6 +164,8 @@ const app = createApp({
                 
                 // Load initial sample data
                 this.loadEmissions();
+                this.loadRecommendations();
+                this.loadRecommendationStats();
                 
                 this.showNotification('Login successful! Welcome to CarbonTrack.', 'success');
                 this.initializeChart();
@@ -561,6 +591,100 @@ const app = createApp({
         
         displayMonthlyEmissions() {
             return Math.round(this.monthlyEmissions * 100) / 100;
+        },
+        
+        // Recommendations Methods
+        async loadRecommendations() {
+            if (!this.isAuthenticated) return;
+            
+            this.loading = true;
+            try {
+                const response = await axios.get(`${this.apiBase}/recommendations/`, {
+                    headers: {
+                        'Authorization': `Bearer ${this.authToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    params: {
+                        limit: 20
+                    }
+                });
+                
+                if (response.data.success) {
+                    this.recommendations = response.data.data.recommendations;
+                    this.updateRecommendationStats(response.data.data);
+                } else {
+                    console.error('Failed to load recommendations:', response.data);
+                }
+            } catch (error) {
+                console.error('Error loading recommendations:', error);
+                this.showNotification('Failed to load recommendations', 'error');
+            } finally {
+                this.loading = false;
+            }
+        },
+        
+        async loadRecommendationStats() {
+            if (!this.isAuthenticated) return;
+            
+            try {
+                const response = await axios.get(`${this.apiBase}/recommendations/stats`, {
+                    headers: {
+                        'Authorization': `Bearer ${this.authToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (response.data.success) {
+                    const stats = response.data.data;
+                    this.recommendationStats = {
+                        totalRecommendations: stats.total_recommendations || 0,
+                        potentialSavings: stats.potential_impact?.total_co2_savings_kg || 0,
+                        quickWins: stats.potential_impact?.quick_wins || 0,
+                        highImpact: stats.potential_impact?.high_impact_count || 0
+                    };
+                }
+            } catch (error) {
+                console.error('Error loading recommendation stats:', error);
+            }
+        },
+        
+        updateRecommendationStats(data) {
+            this.recommendationStats = {
+                totalRecommendations: data.count || 0,
+                potentialSavings: data.total_potential_savings_kg || 0,
+                quickWins: data.implementation_stats?.easy || 0,
+                highImpact: this.recommendations.filter(rec => rec.co2_savings_kg > 50).length
+            };
+        },
+        
+        getCategoryIcon(category) {
+            const icons = {
+                transportation: '🚗',
+                energy: '⚡',
+                food: '🥗',
+                waste: '♻️',
+                lifestyle: '🌱'
+            };
+            return icons[category] || '📋';
+        },
+        
+        getDifficultyColor(difficulty) {
+            const colors = {
+                'Easy': 'bg-green-100 text-green-800',
+                'Medium': 'bg-yellow-100 text-yellow-800',
+                'Hard': 'bg-red-100 text-red-800'
+            };
+            return colors[difficulty] || 'bg-gray-100 text-gray-800';
+        },
+        
+        getCostColor(cost) {
+            const colors = {
+                'Free': 'bg-green-100 text-green-800',
+                'Low Cost': 'bg-blue-100 text-blue-800',
+                'Medium Cost': 'bg-yellow-100 text-yellow-800',
+                'High Cost': 'bg-red-100 text-red-800'
+            };
+            return colors[cost] || 'bg-gray-100 text-gray-800';
         }
     }
 });
