@@ -1,0 +1,14 @@
+[[redirects]]
+  from = "/*"
+  to = "/frontend/index.html"
+  status = 200
+
+[build]
+  publish = "frontend"
+  
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-XSS-Protection = "1; mode=block"
+    X-Content-Type-Options = "nosniff"
