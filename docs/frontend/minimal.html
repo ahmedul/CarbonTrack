@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CarbonTrack - Minimal</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; font-family: Arial, sans-serif; }
+    </style>
+</head>
+<body class="bg-blue-50">
+    <div id="app">
+        <div class="min-h-screen bg-gradient-to-br from-blue-500 to-blue-800 flex items-center justify-center">
+            <div class="bg-white rounded-lg shadow-xl p-8 max-w-md w-full mx-4">
+                <h1 class="text-3xl font-bold text-blue-800 mb-6 text-center">
+                    🌍 CarbonTrack
+                </h1>
+                
+                <div v-if="currentView === 'login'">
+                    <h2 class="text-xl font-semibold mb-4">Login</h2>
+                    <form @submit.prevent="login">
+                        <input 
+                            v-model="email" 
+                            type="email" 
+                            placeholder="Email"
+                            class="w-full p-3 border rounded-lg mb-3"
+                        >
+                        <input 
+                            v-model="password" 
+                            type="password" 
+                            placeholder="Password"
+                            class="w-full p-3 border rounded-lg mb-4"
+                        >
+                        <button 
+                            type="submit"
+                            class="w-full bg-blue-600 text-white p-3 rounded-lg font-semibold hover:bg-blue-700"
+                        >
+                            Login
+                        </button>
+                    </form>
+                </div>
+                
+                <div v-else>
+                    <h2 class="text-xl font-semibold mb-4">Dashboard</h2>
+                    <p class="mb-4">Welcome! You are logged in.</p>
+                    <button 
+                        @click="currentView = 'login'"
+                        class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700"
+                    >
+                        Logout
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp } = Vue;
+        
+        createApp({
+            data() {
+                return {
+                    currentView: 'login',
+                    email: '',
+                    password: ''
+                };
+            },
+            methods: {
+                login() {
+                    if (this.email && this.password) {
+                        this.currentView = 'dashboard';
+                        alert('Login successful! (This is a demo)');
+                    } else {
+                        alert('Please enter email and password');
+                    }
+                }
+            },
+            mounted() {
+                console.log('Minimal CarbonTrack app mounted successfully!');
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>

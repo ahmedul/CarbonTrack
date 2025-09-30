@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CarbonTrack - Basic Test</title>
+</head>
+<body>
+    <h1>Basic HTML Test</h1>
+    <p>If you can see this, the server is working fine.</p>
+    
+    <div id="vue-test">
+        <h2>Vue.js Test Area</h2>
+        <p id="before-vue">This text should be replaced if Vue.js loads correctly.</p>
+    </div>
+
+    <script>
+        console.log('Basic JavaScript is working');
+        document.getElementById('before-vue').innerHTML = 'JavaScript is working, now testing Vue.js...';
+    </script>
+
+    <!-- Vue.js CDN -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script>
+        console.log('Vue script tag loaded');
+        
+        if (typeof Vue !== 'undefined') {
+            console.log('Vue is available:', Vue);
+            document.getElementById('before-vue').innerHTML = 'Vue.js loaded successfully!';
+            
+            const { createApp } = Vue;
+            const app = createApp({
+                data() {
+                    return {
+                        message: 'Vue.js is working!'
+                    }
+                }
+            });
+            
+            // Add a div for Vue to mount to
+            const vueDiv = document.createElement('div');
+            vueDiv.innerHTML = '<p>{{ message }}</p>';
+            vueDiv.id = 'vue-app';
+            document.getElementById('vue-test').appendChild(vueDiv);
+            
+            app.mount('#vue-app');
+            console.log('Vue app mounted successfully');
+        } else {
+            console.error('Vue is not loaded');
+            document.getElementById('before-vue').innerHTML = 'ERROR: Vue.js failed to load from CDN';
+        }
+    </script>
+</body>
+</html>

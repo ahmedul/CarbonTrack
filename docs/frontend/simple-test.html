@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CarbonTrack - Simple Test</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <style>
+        [v-cloak] { display: none; }
+    </style>
+</head>
+<body>
+    <div id="app" v-cloak>
+        <h1>{{ message }}</h1>
+        <p>Vue.js is {{ isWorking ? 'working!' : 'not working' }}</p>
+        <button @click="testClick">Click Me</button>
+        <p v-if="clicked">Button was clicked!</p>
+    </div>
+
+    <script>
+        console.log('Script starting...');
+        
+        if (typeof Vue === 'undefined') {
+            console.error('Vue.js is not loaded!');
+            document.body.innerHTML = '<h1 style="color: red;">Vue.js failed to load from CDN</h1>';
+        } else {
+            console.log('Vue.js is available');
+            
+            const { createApp } = Vue;
+            
+            createApp({
+                data() {
+                    return {
+                        message: 'CarbonTrack Test',
+                        isWorking: true,
+                        clicked: false
+                    };
+                },
+                methods: {
+                    testClick() {
+                        this.clicked = true;
+                        console.log('Button clicked!');
+                    }
+                },
+                mounted() {
+                    console.log('Vue app mounted successfully!');
+                }
+            }).mount('#app');
+        }
+    </script>
+</body>
+</html>
