@@ -75,6 +75,54 @@ Resources:
         - Key: Application
           Value: CarbonTrack
 
+  # Cognito User Pool
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub 'carbontrack-users-${Environment}'
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireUppercase: true
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: true
+      AutoVerifiedAttributes:
+        - email
+      UsernameAttributes:
+        - email
+      MfaConfiguration: 'OFF'
+      Schema:
+        - Name: email
+          AttributeDataType: String
+          Required: true
+          Mutable: true
+        - Name: name
+          AttributeDataType: String
+          Required: true
+          Mutable: true
+      UserPoolTags:
+        Environment: !Ref Environment
+        Application: CarbonTrack
+
+  # Cognito User Pool Client
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: !Sub 'carbontrack-client-${Environment}'
+      UserPoolId: !Ref UserPool
+      ExplicitAuthFlows:
+        - ALLOW_ADMIN_USER_PASSWORD_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+      GenerateSecret: false
+      TokenValidityUnits:
+        AccessToken: hours
+        IdToken: hours
+        RefreshToken: days
+      AccessTokenValidity: 24
+      IdTokenValidity: 24
+      RefreshTokenValidity: 30
+
   # IAM Role for Lambda
   LambdaExecutionRole:
     Type: AWS::IAM::Role
@@ -105,6 +153,23 @@ Resources:
                 Resource:
                   - !GetAtt CarbonDataTable.Arn
                   - !GetAtt UsersTable.Arn
+        - PolicyName: CognitoAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cognito-idp:AdminCreateUser
+                  - cognito-idp:AdminSetUserPassword
+                  - cognito-idp:AdminInitiateAuth
+                  - cognito-idp:AdminGetUser
+                  - cognito-idp:AdminUpdateUserAttributes
+                  - cognito-idp:AdminDeleteUser
+                  - cognito-idp:ListUsers
+                  - cognito-idp:DescribeUserPool
+                  - cognito-idp:DescribeUserPoolClient
+                Resource: 
+                  - !Sub 'arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/*'
 
   # Lambda Function for Backend API
   BackendLambda:
@@ -136,6 +201,8 @@ Resources:
           ENVIRONMENT: !Ref Environment
           CARBON_DATA_TABLE: !Ref CarbonDataTable
           USERS_TABLE: !Ref UsersTable
+          COGNITO_USER_POOL_ID: !Ref UserPool
+          COGNITO_CLIENT_ID: !Ref UserPoolClient
       Tags:
         - Key: Environment
           Value: !Ref Environment
@@ -251,3 +318,15 @@ Outputs:
     Value: !Ref BackendLambda
     Export:
       Name: !Sub '${AWS::StackName}-LambdaFunction'
+
+  UserPoolId:
+    Description: 'Cognito User Pool ID'
+    Value: !Ref UserPool
+    Export:
+      Name: !Sub '${AWS::StackName}-UserPoolId'
+
+  UserPoolClientId:
+    Description: 'Cognito User Pool Client ID'
+    Value: !Ref UserPoolClient
+    Export:
+      Name: !Sub '${AWS::StackName}-UserPoolClientId'

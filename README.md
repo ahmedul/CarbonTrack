@@ -106,14 +106,28 @@ For detailed information about our calculation methods, emission factors, and sc
 
 ---
 
-## �🚀 Features (MVP Scope)
+## 🚀 Features (MVP Scope)
 
-- 🔐 **User Authentication** with AWS Cognito  
-- 📝 **Data Input** for energy usage & travel records  
-- 📊 **CO₂ Calculation Engine** (Python backend)  
-- 📈 **Dashboard** with charts to visualize emissions over time  
-- 💾 **Serverless Storage** using DynamoDB + S3  
-- ⚡ **CI/CD Pipeline** with AWS CodePipeline  
+- 🔐 **User Authentication** with JWT-based secure login system  
+- 📝 **Carbon Activity Tracking** across transportation, energy, food & waste  
+- 📊 **Scientific CO₂ Calculation Engine** with EPA/IPCC emission factors  
+- 📈 **Interactive Dashboard** with real-time charts and trend analysis  
+- 🧠 **Intelligent Recommendations** - AI-powered personalized carbon reduction suggestions  
+- 🎯 **Goal Setting & Achievement** system for carbon reduction targets  
+- 💾 **Serverless Cloud Architecture** using AWS Lambda + DynamoDB  
+- ⚡ **Modern CI/CD Pipeline** with automated testing & deployment
+
+### 💡 NEW: Intelligent Recommendation System
+Our AI-powered recommendation engine analyzes your carbon footprint patterns and provides personalized, scientifically-backed suggestions to reduce your environmental impact:
+
+- **Pattern Analysis**: Understands your emission patterns across all categories
+- **Scientific Backing**: Uses data from EPA, IPCC, DEFRA, IEA, and FAO  
+- **Personalized Suggestions**: Tailored recommendations based on your activities
+- **Impact Calculations**: Estimates CO₂ savings for each recommendation
+- **Action-Oriented**: Step-by-step implementation guides
+- **Smart Scoring**: Relevance-based ranking (0-100 scale)
+
+**Example**: If you drive 30km daily in a gasoline car, the system recommends switching to hybrid (43% emission reduction, 1,245 kg CO₂ saved annually) with specific implementation steps.  
 
 ---
 
@@ -230,6 +244,27 @@ CarbonTrack is evolving from an individual carbon tracking MVP into a comprehens
 **Professional Plan**: $99/month - Up to 50 employees, department tracking, basic integrations
 **Enterprise Plan**: $499/month - Unlimited users, full integrations, compliance reporting
 **Enterprise Plus**: Custom pricing - On-premise deployment, dedicated support, custom development
+
+## 📚 Documentation
+
+Comprehensive documentation is available in the `/docs` folder:
+
+### Core Documentation
+- **[📖 Documentation Hub](./docs/README.md)** - Complete documentation overview
+- **[🧠 Recommendation Intelligence](./docs/RECOMMENDATION_INTELLIGENCE.md)** - Deep dive into AI recommendation system
+- **[🔌 API Documentation](./docs/API_RECOMMENDATIONS.md)** - Complete API reference for recommendations
+- **[🤝 Contributing Guide](./CONTRIBUTING.md)** - How to contribute to the project
+
+### Key Features Documented
+- **Intelligent Recommendations**: Pattern analysis, scientific backing, personalization algorithms
+- **Carbon Calculations**: Scientific methodology, emission factors, accuracy standards
+- **API Integration**: Complete endpoint documentation with examples
+- **Architecture**: System design, scalability, and security considerations
+
+### Developer Resources
+- **Frontend**: Vue.js components, state management, responsive design
+- **Backend**: AWS Lambda, DynamoDB, authentication, API design
+- **Infrastructure**: CloudFormation, CI/CD, monitoring, security
 
 ### 📋 **Implementation Roadmap**
 
