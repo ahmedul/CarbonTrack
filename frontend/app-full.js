@@ -293,6 +293,20 @@ const app = createApp({
             this.emissionForm.unit = option.unit;
             console.log('Selected activity:', option.name, 'with unit:', option.unit);
         },
+        
+        // Navigation helper for logo click
+        navigateToHome() {
+            console.log('Logo clicked - navigating to home');
+            if (this.isAuthenticated) {
+                // If user is logged in, go to dashboard
+                this.currentView = 'dashboard';
+                console.log('Authenticated user - navigating to dashboard');
+            } else {
+                // If not logged in, go to welcome page (neither login nor register)
+                this.currentView = 'welcome';
+                console.log('Non-authenticated user - navigating to welcome page');
+            }
+        },
         // Authentication methods
         login() {
             console.log('=== LOGIN ATTEMPT ===');
