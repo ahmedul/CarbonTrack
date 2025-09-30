@@ -366,24 +366,10 @@
                         </div>
                         <button type="submit" :disabled="!isRegistrationValid" 
                                 :class="{'opacity-50 cursor-not-allowed': !isRegistrationValid}"
-                                @click="console.log('Register button clicked!', isRegistrationValid)"
                                 class="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white py-3 rounded-xl font-semibold text-lg shadow-lg transition-all duration-200">
-                            Create Account {{ isRegistrationValid ? '✓' : '✗' }}
+                            Create Account
                         </button>
                     </form>
-                    
-                    <!-- Debug Information (temporary) -->
-                    <div class="mt-4 p-3 bg-gray-50 border rounded-lg text-xs">
-                        <p><strong>Debug Info:</strong></p>
-                        <p>First Name: {{ registerForm.firstName || 'empty' }}</p>
-                        <p>Last Name: {{ registerForm.lastName || 'empty' }}</p>
-                        <p>Email: {{ registerForm.email || 'empty' }}</p>
-                        <p>Password Length: {{ registerForm.password.length }}</p>
-                        <p>Passwords Match: {{ registerForm.password === registerForm.confirmPassword }}</p>
-                        <p>Terms Accepted: {{ registerForm.acceptTerms }}</p>
-                        <p>Valid: {{ isRegistrationValid }}</p>
-                    </div>
-                    
                     <div class="mt-6 pt-6 border-t border-gray-200 text-center">
                         <p class="text-sm text-gray-600">
                             Already have an account? 
@@ -396,6 +382,35 @@
                                 <span class="font-semibold">Note:</span> New registrations require admin approval before access is granted.
                             </p>
                         </div>
+                        
+                        <!-- Success Message Area -->
+                        <div v-if="notifications.length > 0" class="mt-4 space-y-2">
+                            <div v-for="notification in notifications" :key="notification.id" 
+                                 :class="['p-6 rounded-xl border-2 shadow-lg', 
+                                         notification.type === 'success' ? 'bg-green-50 border-green-300 text-green-900' : 
+                                         notification.type === 'error' ? 'bg-red-50 border-red-300 text-red-900' : 
+                                         'bg-blue-50 border-blue-300 text-blue-900']">
+                                <div class="flex items-center">
+                                    <div class="mr-4 text-2xl">
+                                        <span v-if="notification.type === 'success'">🎉</span>
+                                        <span v-else-if="notification.type === 'error'">❌</span>
+                                        <span v-else>ℹ️</span>
+                                    </div>
+                                    <div class="flex-1">
+                                        <div class="font-semibold text-lg">{{ notification.message }}</div>
+                                        <div v-if="notification.type === 'success'" class="text-sm mt-1 opacity-75">
+                                            You will receive an email confirmation once your account is approved by an administrator.
+                                        </div>
+                                    </div>
+                                    <button @click="removeNotification(notification.id)" 
+                                            class="ml-4 text-xl opacity-50 hover:opacity-100 transition-opacity">
+                                        ×
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+
                     </div>
                 </div>
             </div>

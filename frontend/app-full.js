@@ -297,6 +297,7 @@ const app = createApp({
         login() {
             console.log('Login attempt for:', this.loginForm.email);
             
+            // Check demo user first
             if (this.loginForm.email === 'demo@carbontrack.dev' && this.loginForm.password === 'password123') {
                 this.isAuthenticated = true;
                 this.currentView = 'dashboard';
@@ -318,7 +319,36 @@ const app = createApp({
                 this.showNotification('Login successful! Welcome to CarbonTrack.', 'success');
                 this.initializeChart();
             } else {
-                this.showNotification('Invalid credentials. Use demo@carbontrack.dev / password123', 'error');
+                // Check approved users
+                const approvedUser = this.allUsers.find(user => 
+                    user.email === this.loginForm.email && 
+                    user.status === 'active'
+                );
+                
+                if (approvedUser && this.loginForm.password === 'password123') {
+                    // Login approved user
+                    this.isAuthenticated = true;
+                    this.currentView = 'dashboard';
+                    this.userProfile = {
+                        user_id: approvedUser.id,
+                        email: approvedUser.email,
+                        full_name: approvedUser.name,
+                        carbon_budget: 500,
+                        role: approvedUser.role
+                    };
+                    localStorage.setItem('carbontrack_token', `user-token-${approvedUser.id}`);
+                    
+                    // Load initial sample data
+                    this.loadEmissions();
+                    this.loadRecommendations();
+                    this.loadRecommendationStats();
+                    this.loadGamificationData();
+                    
+                    this.showNotification(`Welcome back, ${approvedUser.name}!`, 'success');
+                    this.initializeChart();
+                } else {
+                    this.showNotification('Invalid credentials or account not approved yet. Contact admin for approval.', 'error');
+                }
             }
         },
         
@@ -672,6 +702,8 @@ const app = createApp({
             }
         },
         
+
+
         // Navigation methods
         switchView(view) {
             this.currentView = view;
@@ -688,13 +720,22 @@ const app = createApp({
             };
             this.notifications.push(notification);
             
-            // Auto-remove notification after 5 seconds
+            // Auto-remove notification - longer for success messages
+            const timeout = type === 'success' ? 10000 : 5000;
             setTimeout(function() {
-                const index = this.notifications.findIndex(function(n) { return n.id === notification.id; });
-                if (index !== -1) {
-                    this.notifications.splice(index, 1);
-                }
-            }.bind(this), 5000);
+                this.removeNotification(notification.id);
+            }.bind(this), timeout);
+        },
+
+        removeNotification(id) {
+            const index = this.notifications.findIndex(function(n) { return n.id === id; });
+            if (index !== -1) {
+                this.notifications.splice(index, 1);
+            }
+        },
+
+        clearAllNotifications() {
+            this.notifications = [];
         },
         
         removeNotification(notificationId) {
@@ -964,9 +1005,7 @@ const app = createApp({
         
         // Registration Methods
         async register() {
-            console.log('Register method called');
-            console.log('Registration form data:', this.registerForm);
-            console.log('Is registration valid?', this.isRegistrationValid);
+            console.log('Registration attempt for:', this.registerForm.email);
             
             if (!this.isRegistrationValid) {
                 this.showNotification('Please fill in all required fields correctly', 'error');
@@ -978,15 +1017,36 @@ const app = createApp({
                 // Simulate API call for registration
                 await new Promise(resolve => setTimeout(resolve, 1000));
                 
-                // In real implementation, this would call the backend API
-                console.log('Registration data:', this.registerForm);
+                // Add user to pending registrations list
+                const newUser = {
+                    id: `pending_${Date.now()}`,
+                    firstName: this.registerForm.firstName,
+                    lastName: this.registerForm.lastName,
+                    email: this.registerForm.email,
+                    organization: this.registerForm.organization || null,
+                    registeredAt: new Date().toISOString()
+                };
+                
+                // Add to pending users list
+                this.pendingUsers.push(newUser);
+                
+                // Update admin stats
+                this.adminStats.pendingRegistrations++;
+                
+                console.log('✅ Registration successful for:', newUser.email);
                 
                 this.showNotification(
-                    'Registration successful! Please wait for admin approval before logging in.',
+                    '🎉 Registration Successful! Your account request has been submitted for admin approval. You will be able to login once approved.',
                     'success'
                 );
                 
-                // Reset form and redirect to login
+                // Also log success details
+                console.log('✅ REGISTRATION SUCCESSFUL!');
+                console.log('User can login after admin approval with:');
+                console.log('Email:', newUser.email);
+                console.log('Password: password123 (default)');
+                
+                // Reset form but stay on registration page to see success
                 this.registerForm = {
                     firstName: '',
                     lastName: '',
@@ -997,7 +1057,13 @@ const app = createApp({
                     acceptTerms: false
                 };
                 
-                this.currentView = 'login';
+                console.log('=== REGISTRATION COMPLETE ===');
+                console.log('User should now appear in pending list');
+                console.log('Current pending users:', this.pendingUsers);
+                console.log('Admin stats:', this.adminStats);
+                
+                // Stay on registration page to see success message
+                // this.currentView = 'login';
                 
             } catch (error) {
                 console.error('Registration error:', error);
@@ -1018,15 +1084,23 @@ const app = createApp({
                 if (userIndex !== -1) {
                     const user = this.pendingUsers[userIndex];
                     
-                    // Add to approved users
-                    this.allUsers.push({
+                    // Add to approved users with login credentials
+                    const approvedUser = {
                         id: `approved_${Date.now()}`,
                         name: `${user.firstName} ${user.lastName}`,
                         email: user.email,
                         status: 'active',
                         role: 'user',
-                        lastActive: new Date().toISOString()
-                    });
+                        lastActive: new Date().toISOString(),
+                        // Store original registration info for reference
+                        firstName: user.firstName,
+                        lastName: user.lastName,
+                        registeredAt: user.registeredAt
+                    };
+                    
+                    this.allUsers.push(approvedUser);
+                    
+                    console.log('✅ User approved:', user.email, '- can now login with password: password123');
                     
                     // Remove from pending
                     this.pendingUsers.splice(userIndex, 1);
