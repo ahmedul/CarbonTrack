@@ -112,6 +112,35 @@ const app = createApp({
                 potentialSavings: 0,
                 quickWins: 0,
                 highImpact: 0
+            },
+            
+            // Gamification
+            gamificationProfile: {
+                total_points: 0,
+                level: {
+                    current_level: { name: 'Seedling', level: 1, icon: '🌱' },
+                    next_level: null,
+                    progress_to_next: 0
+                },
+                achievements_count: 0,
+                goals_achieved: 0,
+                streak: {
+                    current_streak: 0,
+                    longest_streak: 0,
+                    streak_status: 'no_activities'
+                }
+            },
+            recentAchievements: [],
+            allAchievements: [],
+            showAllAchievements: false,
+            activeChallenges: [],
+            leaderboards: [],
+            selectedLeaderboardPeriod: 'weekly',
+            gamificationStats: {
+                achievements_earned: 0,
+                total_activities: 0,
+                carbon_saved_kg: 0,
+                goals_achieved: 0
             }
         };
     },
@@ -122,6 +151,13 @@ const app = createApp({
                 return this.recommendations;
             }
             return this.recommendations.filter(rec => rec.category === this.selectedCategory);
+        },
+        
+        filteredLeaderboards() {
+            return this.leaderboards.filter(lb => 
+                lb.period === this.selectedLeaderboardPeriod || 
+                (this.selectedLeaderboardPeriod === 'all_time' && lb.period === 'all_time')
+            );
         }
     },
     
@@ -166,6 +202,7 @@ const app = createApp({
                 this.loadEmissions();
                 this.loadRecommendations();
                 this.loadRecommendationStats();
+                this.loadGamificationData();
                 
                 this.showNotification('Login successful! Welcome to CarbonTrack.', 'success');
                 this.initializeChart();
@@ -685,6 +722,132 @@ const app = createApp({
                 'High Cost': 'bg-red-100 text-red-800'
             };
             return colors[cost] || 'bg-gray-100 text-gray-800';
+        },
+        
+        // Gamification Methods
+        async loadGamificationProfile() {
+            if (!this.isAuthenticated) return;
+            
+            this.loading = true;
+            try {
+                const response = await axios.get(`${this.apiBase}/gamification/profile`, {
+                    headers: {
+                        'Authorization': `Bearer ${this.authToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (response.data.success) {
+                    const data = response.data.data;
+                    this.gamificationProfile = data.user_profile;
+                    this.recentAchievements = data.recent_achievements;
+                    this.activeChallenges = data.active_challenges;
+                    this.gamificationStats = data.statistics;
+                } else {
+                    console.error('Failed to load gamification profile:', response.data);
+                }
+            } catch (error) {
+                console.error('Error loading gamification profile:', error);
+                this.showNotification('Failed to load achievements data', 'error');
+            } finally {
+                this.loading = false;
+            }
+        },
+        
+        async loadAchievements() {
+            if (!this.isAuthenticated) return;
+            
+            try {
+                const response = await axios.get(`${this.apiBase}/gamification/achievements`, {
+                    headers: {
+                        'Authorization': `Bearer ${this.authToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (response.data.success) {
+                    const data = response.data.data;
+                    this.allAchievements = [...data.earned_achievements, ...data.achievements_progress];
+                }
+            } catch (error) {
+                console.error('Error loading achievements:', error);
+            }
+        },
+        
+        async loadLeaderboards() {
+            if (!this.isAuthenticated) return;
+            
+            try {
+                const response = await axios.get(`${this.apiBase}/gamification/leaderboards`, {
+                    headers: {
+                        'Authorization': `Bearer ${this.authToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    params: {
+                        limit: 10
+                    }
+                });
+                
+                if (response.data.success) {
+                    this.leaderboards = response.data.data.leaderboards;
+                }
+            } catch (error) {
+                console.error('Error loading leaderboards:', error);
+            }
+        },
+        
+        async completeChallenge(challengeId) {
+            try {
+                const response = await axios.post(`${this.apiBase}/gamification/challenges/${challengeId}/complete`, {}, {
+                    headers: {
+                        'Authorization': `Bearer ${this.authToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (response.data.success) {
+                    const result = response.data.data.challenge_completion;
+                    this.showNotification(
+                        `🎉 Challenge completed! +${result.points_earned} points`, 
+                        'success'
+                    );
+                    
+                    // Reload gamification data
+                    this.loadGamificationProfile();
+                    
+                    // Show new achievements if any
+                    if (response.data.data.new_achievements.length > 0) {
+                        setTimeout(() => {
+                            response.data.data.new_achievements.forEach(achievement => {
+                                this.showNotification(
+                                    `🏆 Achievement Unlocked: ${achievement.name}!`,
+                                    'success'
+                                );
+                            });
+                        }, 1000);
+                    }
+                } else {
+                    this.showNotification('Failed to complete challenge', 'error');
+                }
+            } catch (error) {
+                console.error('Error completing challenge:', error);
+                this.showNotification('Failed to complete challenge', 'error');
+            }
+        },
+        
+        getRankColor(rank) {
+            if (rank === 1) return 'bg-yellow-500'; // Gold
+            if (rank === 2) return 'bg-gray-400'; // Silver
+            if (rank === 3) return 'bg-yellow-600'; // Bronze
+            if (rank <= 10) return 'bg-blue-500'; // Top 10
+            return 'bg-gray-500'; // Others
+        },
+        
+        // Load gamification data when user logs in
+        loadGamificationData() {
+            this.loadGamificationProfile();
+            this.loadAchievements();
+            this.loadLeaderboards();
         }
     }
 });
