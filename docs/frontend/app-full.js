@@ -13,7 +13,7 @@ const { createApp } = Vue;
 const app = createApp({
     data() {
         return {
-            currentView: 'dashboard',
+            currentView: 'home',
             isAuthenticated: false,
             authToken: null,
             apiBase: 'https://ahzh0n0k6c.execute-api.us-east-1.amazonaws.com/prod/api/v1',
@@ -302,8 +302,8 @@ const app = createApp({
                 this.currentView = 'dashboard';
                 console.log('Authenticated user - navigating to dashboard');
             } else {
-                // If not logged in, go to welcome page (neither login nor register)
-                this.currentView = 'welcome';
+                // If not logged in, go to welcome page (any view that's not login or register)
+                this.currentView = 'home';
                 console.log('Non-authenticated user - navigating to welcome page');
             }
         },
@@ -397,7 +397,7 @@ const app = createApp({
             console.log('Before logout - currentView:', this.currentView);
             
             this.isAuthenticated = false;
-            this.currentView = 'login';
+            this.currentView = 'home';
             this.userProfile = { user_id: '', email: '', full_name: '', carbon_budget: 500, role: 'user' };
             localStorage.removeItem('carbontrack_token');
             
