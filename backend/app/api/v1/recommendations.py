@@ -1,11 +1,11 @@
 """
 API endpoints for carbon reduction recommendations
 """
-from fastapi import APIRouter, HTTPException, Depends
-from typing import Dict, List, Any, Optional
+from fastapi import APIRouter, HTTPException, Depends, Query
+from typing import Dict, List, Any
 from app.services.recommendation_engine import RecommendationEngine
 from app.services.activity_service import ActivityService
-from app.auth.auth_handler import JWTBearer
+from app.core.middleware import get_current_user
 import logging
 
 # Setup logging
@@ -22,11 +22,11 @@ recommendation_engine = RecommendationEngine()
 activity_service = ActivityService()
 
 
-@router.get("/", dependencies=[Depends(JWTBearer())])
-async def get_recommendations(
-    category: Optional[str] = None,
-    limit: Optional[int] = 10,
-    current_user: Dict[str, Any] = Depends(JWTBearer().get_current_user)
+@router.get("/")
+async def get_user_recommendations(
+    category: str = Query(default=None, description="Category filter"),
+    limit: int = Query(default=10, ge=1, le=50),
+    current_user: Dict[str, Any] = Depends(get_current_user)
 ) -> Dict[str, Any]:
     """
     Get personalized carbon reduction recommendations for the user
@@ -81,7 +81,7 @@ async def get_recommendations(
         raise HTTPException(status_code=500, detail="Failed to generate recommendations")
 
 
-@router.get("/categories", dependencies=[Depends(JWTBearer())])
+@router.get("/categories")
 async def get_recommendation_categories() -> Dict[str, Any]:
     """
     Get available recommendation categories
@@ -130,9 +130,9 @@ async def get_recommendation_categories() -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail="Failed to fetch categories")
 
 
-@router.get("/stats", dependencies=[Depends(JWTBearer())])
+@router.get("/stats")
 async def get_recommendation_stats(
-    current_user: Dict[str, Any] = Depends(JWTBearer().get_current_user)
+    current_user: Dict[str, Any] = Depends(get_current_user)
 ) -> Dict[str, Any]:
     """
     Get recommendation statistics and impact metrics for the user

@@ -7,7 +7,7 @@ from typing import Dict, List, Any, Optional
 from app.services.achievement_engine import AchievementEngine
 from app.services.streaks_challenges import StreaksChallengesEngine
 from app.services.leaderboard_engine import LeaderboardEngine
-from app.auth.auth_handler import JWTBearer
+from app.core.middleware import get_current_user
 import logging
 
 # Setup logging
@@ -25,9 +25,9 @@ streaks_challenges_engine = StreaksChallengesEngine()
 leaderboard_engine = LeaderboardEngine()
 
 
-@router.get("/profile", dependencies=[Depends(JWTBearer())])
+@router.get("/profile")
 async def get_gamification_profile(
-    current_user: Dict[str, Any] = Depends(JWTBearer().get_current_user)
+    current_user: Dict[str, Any] = Depends(get_current_user)
 ) -> Dict[str, Any]:
     """
     Get comprehensive gamification profile for the user
@@ -89,9 +89,9 @@ async def get_gamification_profile(
         raise HTTPException(status_code=500, detail="Failed to get gamification profile")
 
 
-@router.get("/achievements", dependencies=[Depends(JWTBearer())])
+@router.get("/achievements")
 async def get_achievements(
-    current_user: Dict[str, Any] = Depends(JWTBearer().get_current_user),
+    current_user: Dict[str, Any] = Depends(get_current_user),
     include_progress: bool = Query(True, description="Include progress towards incomplete achievements")
 ) -> Dict[str, Any]:
     """
@@ -144,9 +144,9 @@ async def get_achievements(
         raise HTTPException(status_code=500, detail="Failed to get achievements")
 
 
-@router.get("/challenges", dependencies=[Depends(JWTBearer())])
+@router.get("/challenges")
 async def get_challenges(
-    current_user: Dict[str, Any] = Depends(JWTBearer().get_current_user),
+    current_user: Dict[str, Any] = Depends(get_current_user),
     challenge_type: Optional[str] = Query(None, description="Filter by challenge type (daily, weekly, monthly)")
 ) -> Dict[str, Any]:
     """
@@ -199,10 +199,10 @@ async def get_challenges(
         raise HTTPException(status_code=500, detail="Failed to get challenges")
 
 
-@router.post("/challenges/{challenge_id}/complete", dependencies=[Depends(JWTBearer())])
+@router.post("/challenges/{challenge_id}/complete")
 async def complete_challenge(
     challenge_id: str,
-    current_user: Dict[str, Any] = Depends(JWTBearer().get_current_user)
+    current_user: Dict[str, Any] = Depends(get_current_user)
 ) -> Dict[str, Any]:
     """
     Mark a challenge as completed
@@ -243,9 +243,9 @@ async def complete_challenge(
         raise HTTPException(status_code=500, detail="Failed to complete challenge")
 
 
-@router.get("/leaderboards", dependencies=[Depends(JWTBearer())])
+@router.get("/leaderboards")
 async def get_leaderboards(
-    current_user: Dict[str, Any] = Depends(JWTBearer().get_current_user),
+    current_user: Dict[str, Any] = Depends(get_current_user),
     leaderboard_type: Optional[str] = Query(None, description="Filter by leaderboard type"),
     period: Optional[str] = Query(None, description="Filter by time period"),
     limit: int = Query(50, description="Number of entries per leaderboard")
@@ -298,11 +298,11 @@ async def get_leaderboards(
         raise HTTPException(status_code=500, detail="Failed to get leaderboards")
 
 
-@router.get("/leaderboards/{leaderboard_id}", dependencies=[Depends(JWTBearer())])
-async def get_specific_leaderboard(
+@router.get("/leaderboards/{leaderboard_id}")
+async def get_leaderboard_by_id(
     leaderboard_id: str,
-    current_user: Dict[str, Any] = Depends(JWTBearer().get_current_user),
-    limit: int = Query(50, description="Number of entries to return")
+    limit: int = Query(default=10, ge=1, le=100),
+    current_user: Dict[str, Any] = Depends(get_current_user)
 ) -> Dict[str, Any]:
     """
     Get a specific leaderboard with detailed rankings
@@ -338,9 +338,9 @@ async def get_specific_leaderboard(
         raise HTTPException(status_code=500, detail="Failed to get leaderboard")
 
 
-@router.get("/stats", dependencies=[Depends(JWTBearer())])
+@router.get("/stats")
 async def get_gamification_stats(
-    current_user: Dict[str, Any] = Depends(JWTBearer().get_current_user)
+    current_user: Dict[str, Any] = Depends(get_current_user)
 ) -> Dict[str, Any]:
     """
     Get comprehensive gamification statistics for the user
@@ -517,4 +517,122 @@ async def _get_leaderboard_user_data() -> List[Dict[str, Any]]:
             "achievements_count": 11
         }
         # Add more mock users...
+    ]
+
+
+# Helper functions for gamification API endpoints
+async def _get_user_stats(user_id: str) -> Dict[str, Any]:
+    """Get user statistics for gamification calculations."""
+    # Mock user stats - in production, this would come from database
+    return {
+        "total_points": 1250,
+        "level": 4,
+        "current_streak": 12,
+        "longest_streak": 23,
+        "activities_completed": 156,
+        "achievements_earned": 11,
+        "challenges_completed": 28,
+        "co2_reduced_total": 298.4,
+        "co2_reduced_this_week": 52.3,
+        "co2_reduced_this_month": 298.4
+    }
+
+
+async def _get_recent_achievements(user_id: str, limit: int = 5) -> List[Dict[str, Any]]:
+    """Get recent achievements for a user."""
+    # Mock recent achievements
+    return [
+        {
+            "achievement_id": "streak_bronze_12",
+            "name": "Streak Master - Bronze",
+            "description": "Maintain a 7-day tracking streak",
+            "tier": "bronze",
+            "category": "streaks",
+            "points_awarded": 50,
+            "earned_date": "2025-09-28T10:30:00Z",
+            "icon": "🔥"
+        },
+        {
+            "achievement_id": "carbon_reducer_silver_15",
+            "name": "Carbon Reducer - Silver",
+            "description": "Reduce 200kg CO2 total",
+            "tier": "silver", 
+            "category": "carbon_reduction",
+            "points_awarded": 150,
+            "earned_date": "2025-09-25T15:45:00Z",
+            "icon": "🌱"
+        }
+    ][:limit]
+
+
+async def _get_user_achievements(user_id: str) -> List[Dict[str, Any]]:
+    """Get all earned achievements for a user."""
+    # Mock earned achievements
+    return [
+        {
+            "achievement_id": "first_entry_1",
+            "name": "Getting Started",
+            "description": "Log your first carbon activity",
+            "tier": "bronze",
+            "category": "milestones",
+            "points_awarded": 25,
+            "earned_date": "2025-09-15T09:00:00Z"
+        },
+        {
+            "achievement_id": "streak_bronze_12",
+            "name": "Streak Master - Bronze", 
+            "description": "Maintain a 7-day tracking streak",
+            "tier": "bronze",
+            "category": "streaks",
+            "points_awarded": 50,
+            "earned_date": "2025-09-28T10:30:00Z"
+        }
+    ]
+
+
+async def _get_completed_challenges_today(user_id: str) -> List[str]:
+    """Get IDs of challenges completed today."""
+    # Mock completed challenges today
+    return ["challenge_daily_transport_20250930"]
+
+
+async def _update_user_points(user_id: str, points: int) -> None:
+    """Update user points after completing a challenge."""
+    # Mock points update - in production, this would update database
+    logger.info(f"Updated user {user_id} with {points} points")
+    return
+
+
+async def _get_leaderboard_user_data() -> List[Dict[str, Any]]:
+    """Get user data for leaderboard generation."""
+    # Return the same mock data used above
+    return [
+        {
+            "user_id": "user123",
+            "username": "EcoWarrior2025",
+            "total_points": 1250,
+            "level": 4,
+            "current_streak": 12,
+            "activities_this_week": 8,
+            "activities_this_month": 35,
+            "total_co2_reduced": 124.7,
+            "co2_reduced_this_week": 23.1,
+            "co2_reduced_this_month": 124.7,
+            "goals_achieved": 2,
+            "achievements_count": 8
+        },
+        {
+            "user_id": "user456", 
+            "username": "GreenThumb42",
+            "total_points": 980,
+            "level": 3,
+            "current_streak": 8,
+            "activities_this_week": 6,
+            "activities_this_month": 28,
+            "total_co2_reduced": 89.3,
+            "co2_reduced_this_week": 18.5,
+            "co2_reduced_this_month": 89.3,
+            "goals_achieved": 1,
+            "achievements_count": 6
+        }
     ]
