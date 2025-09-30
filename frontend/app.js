@@ -16,7 +16,7 @@ const app = createApp({
             currentView: 'dashboard',
             isAuthenticated: false,
             authToken: null,
-            apiBase: 'http://localhost:8000/api/v1',
+            apiBase: 'https://ahzh0n0k6c.execute-api.us-east-1.amazonaws.com/prod/api/v1',
             
             // User data
             userProfile: {
@@ -46,7 +46,44 @@ const app = createApp({
             totalEmissions: 0,
             monthlyEmissions: 0,
             goalProgress: 0,
-            chart: null
+            chart: null,
+            
+            // Demo data - matches what we added to DynamoDB
+            demoEmissions: [
+                {
+                    id: "demo-1",
+                    date: "2024-01-15",
+                    category: "transportation",
+                    activity: "car_gasoline_medium",
+                    amount: 25.5,
+                    unit: "km",
+                    description: "Daily commute to office",
+                    co2_equivalent: 4.896,
+                    created_at: "2024-01-15T09:30:00Z"
+                },
+                {
+                    id: "demo-2", 
+                    date: "2024-01-14",
+                    category: "energy",
+                    activity: "electricity",
+                    amount: 12.3,
+                    unit: "kWh",
+                    description: "Home electricity usage",
+                    co2_equivalent: 4.932,
+                    created_at: "2024-01-14T18:45:00Z"
+                },
+                {
+                    id: "demo-3",
+                    date: "2024-01-13", 
+                    category: "food",
+                    activity: "beef",
+                    amount: 0.5,
+                    unit: "kg",
+                    description: "Lunch - beef burger",
+                    co2_equivalent: 30.0,
+                    created_at: "2024-01-13T12:00:00Z"
+                }
+            ]
         };
     },
     
@@ -57,6 +94,9 @@ const app = createApp({
             this.authToken = token;
             this.isAuthenticated = true;
             await this.loadUserData();
+        } else {
+            // Load demo data when not authenticated
+            this.loadDemoData();
         }
     },
     
@@ -172,10 +212,9 @@ const app = createApp({
                     return;
                 }
                 
-                // Ensure we have a valid token
+                // Handle demo mode when not authenticated
                 if (!this.authToken) {
-                    this.showNotification('Please log in first', 'error');
-                    this.currentView = 'login';
+                    this.addDemoEmission();
                     return;
                 }
                 
@@ -235,6 +274,13 @@ const app = createApp({
         
         async updateProfile() {
             try {
+                if (!this.authToken) {
+                    // Demo mode - just update locally
+                    this.showNotification('Profile updated successfully! (Demo mode - login to save permanently)', 'success');
+                    this.calculateStats(); // Recalculate with new budget
+                    return;
+                }
+                
                 await axios.put(`${this.apiBase}/users/profile`, this.userProfile, {
                     headers: { Authorization: `Bearer ${this.authToken}` }
                 });
@@ -273,13 +319,21 @@ const app = createApp({
         },
         
         renderChart() {
-            const ctx = document.getElementById('emissionsChart');
-            if (!ctx) return;
-            
-            // Destroy existing chart
-            if (this.chart) {
-                this.chart.destroy();
-            }
+            // Use nextTick to ensure DOM is updated
+            this.$nextTick(() => {
+                const ctx = document.getElementById('emissionsChart');
+                if (!ctx) {
+                    console.log('Chart canvas not found, will retry...');
+                    // Retry after a short delay if canvas not found
+                    setTimeout(() => this.renderChart(), 100);
+                    return;
+                }
+                
+                // Destroy existing chart
+                if (this.chart) {
+                    this.chart.destroy();
+                    this.chart = null;
+                }
             
             // Group emissions by month
             const monthlyData = {};
@@ -365,6 +419,7 @@ const app = createApp({
                         }
                     }
                 }
+            });
             });
         },
         
@@ -471,6 +526,97 @@ const app = createApp({
             this.calculateStats();
             this.renderChart();
             this.currentView = 'dashboard';
+        },
+        
+        loadDemoData() {
+            // Load demo data for testing UI without authentication
+            this.emissions = [...this.demoEmissions];
+            this.userProfile.full_name = 'Demo User';
+            this.userProfile.email = 'demo@carbontrack.dev';
+            this.userProfile.carbon_budget = 500;
+            this.calculateStats();
+            this.renderChart();
+            console.log('Loaded demo data:', this.emissions.length, 'emissions');
+        },
+        
+        addDemoEmission() {
+            // Calculate CO2 equivalent for demo (simplified calculation)
+            let co2_equivalent = 0;
+            const amount = parseFloat(this.emissionForm.amount);
+            
+            // Simple emission factors for demo
+            const demoFactors = {
+                'transportation': {
+                    'car_gasoline_small': 0.151,
+                    'car_gasoline_medium': 0.192,
+                    'car_gasoline_large': 0.251,
+                    'car_electric': 0.1203,
+                    'bus_city': 0.089,
+                    'flight_domestic_short': 0.255
+                },
+                'energy': {
+                    'electricity': 0.401,
+                    'natural_gas': 0.184,
+                    'heating_oil': 2.54
+                },
+                'food': {
+                    'beef': 60.0,
+                    'chicken': 9.9,
+                    'vegetables': 2.0
+                }
+            };
+            
+            if (demoFactors[this.emissionForm.category] && 
+                demoFactors[this.emissionForm.category][this.emissionForm.activity]) {
+                co2_equivalent = amount * demoFactors[this.emissionForm.category][this.emissionForm.activity];
+            } else {
+                co2_equivalent = amount * 2.0; // Default factor
+            }
+            
+            // Create demo emission entry
+            const newEmission = {
+                id: `demo-${Date.now()}`,
+                date: this.emissionForm.date,
+                category: this.emissionForm.category,
+                activity: this.emissionForm.activity,
+                amount: amount,
+                unit: this.emissionForm.unit,
+                description: this.emissionForm.description || null,
+                co2_equivalent: co2_equivalent,
+                created_at: new Date().toISOString()
+            };
+            
+            // Add to demo emissions array
+            this.emissions.unshift(newEmission);
+            this.calculateStats();
+            this.renderChart();
+            
+            // Clear form
+            this.emissionForm = {
+                category: '',
+                activity: '',
+                amount: '',
+                unit: '',
+                date: new Date().toISOString().split('T')[0],
+                description: ''
+            };
+            
+            this.showNotification('Demo emission added successfully! (Login to save permanently)', 'success');
+            this.currentView = 'dashboard';
+        }
+    },
+    
+    watch: {
+        // Watch for view changes to re-render chart when returning to dashboard
+        currentView(newView, oldView) {
+            if (newView === 'dashboard' && oldView !== 'dashboard') {
+                // Delay chart rendering to ensure DOM is ready
+                this.$nextTick(() => {
+                    setTimeout(() => {
+                        this.renderChart();
+                    }, 50);
+                });
+            }
         }
     },
     
