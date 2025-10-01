@@ -308,14 +308,60 @@ const app = createApp({
             }
         },
         // Authentication methods
-        login() {
+        async login() {
             console.log('=== LOGIN ATTEMPT ===');
             console.log('Email:', this.loginForm.email);
             console.log('Password length:', this.loginForm.password.length);
             console.log('Is authenticated before login:', this.isAuthenticated);
             console.log('Current view:', this.currentView);
             
-            // Check demo user first (regular user)
+            this.loading = true;
+            
+            try {
+                // First try API login
+                const loginData = {
+                    email: this.loginForm.email,
+                    password: this.loginForm.password
+                };
+                
+                const response = await axios.post(`${this.apiBase}/auth/login`, loginData, {
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (response.data.success) {
+                    console.log('✅ Login successful via API');
+                    const userData = response.data.data;
+                    
+                    this.isAuthenticated = true;
+                    this.currentView = 'dashboard';
+                    this.authToken = userData.token;
+                    this.userProfile = {
+                        user_id: userData.user_id,
+                        email: userData.email,
+                        full_name: userData.full_name,
+                        carbon_budget: userData.carbon_budget || 500,
+                        role: userData.role || 'user'
+                    };
+                    localStorage.setItem('carbontrack_token', userData.token);
+                    
+                    // Load data from API
+                    this.loadEmissions();
+                    this.loadRecommendations();
+                    this.loadRecommendationStats();
+                    this.loadGamificationData();
+                    
+                    this.showNotification('Login successful! Welcome to CarbonTrack.', 'success');
+                    this.initializeChart();
+                    return;
+                }
+            } catch (error) {
+                console.log('📡 API login failed, trying demo accounts');
+                console.error('API Error:', error);
+            }
+            
+            // Fallback to demo accounts if API fails
             if (this.loginForm.email === 'demo@carbontrack.dev' && this.loginForm.password === 'password123') {
                 this.isAuthenticated = true;
                 this.currentView = 'dashboard';
@@ -393,6 +439,8 @@ const app = createApp({
                     this.showNotification('Invalid email or password. Please check your credentials and try again.', 'error');
                 }
             }
+            
+            this.loading = false;
         },
         
         logout() {
@@ -443,9 +491,40 @@ const app = createApp({
             };
         },
         
-        loadEmissions() {
-            console.log('Loading emissions data');
-            // Simulate loading emissions with realistic demo data
+        async loadEmissions() {
+            console.log('Loading emissions data from API');
+            this.loading = true;
+            
+            try {
+                // Make API call to load user's emissions
+                const response = await axios.get(`${this.apiBase}/emissions/`, {
+                    headers: {
+                        'Authorization': `Bearer ${this.authToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (response.data.success) {
+                    console.log('✅ Successfully loaded emissions from API');
+                    this.emissions = response.data.data.emissions || [];
+                    this.totalEmissions = response.data.data.total_emissions || 0;
+                    this.monthlyEmissions = response.data.data.monthly_emissions || 0;
+                    this.goalProgress = response.data.data.goal_progress || 0;
+                } else {
+                    console.log('❌ API call failed, using fallback demo data');
+                    this.loadDemoEmissions();
+                }
+            } catch (error) {
+                console.error('Error loading emissions from API:', error);
+                console.log('📡 API not available, using demo data as fallback');
+                this.loadDemoEmissions();
+            } finally {
+                this.loading = false;
+            }
+        },
+        
+        loadDemoEmissions() {
+            console.log('Loading demo emissions data as fallback');
             this.emissions = [
                 {
                     id: '1',
@@ -538,38 +617,97 @@ const app = createApp({
         },
         
         // Emission management
-        addEmission() {
+        async addEmission() {
             if (!this.emissionForm.category || !this.emissionForm.amount) {
                 this.showNotification('Please fill in all required fields', 'error');
                 return;
             }
             
+            this.loading = true;
+            
+            try {
+                const emissionData = {
+                    category: this.emissionForm.category,
+                    activity: this.emissionForm.activity || this.emissionForm.category,
+                    amount: parseFloat(this.emissionForm.amount),
+                    unit: this.emissionForm.unit || 'kg',
+                    date: this.emissionForm.date,
+                    description: this.emissionForm.description
+                };
+                
+                // Make API call to save emission
+                const response = await axios.post(`${this.apiBase}/emissions/`, emissionData, {
+                    headers: {
+                        'Authorization': `Bearer ${this.authToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (response.data.success) {
+                    console.log('✅ Successfully saved emission to API');
+                    
+                    // Add the emission with the ID returned from API
+                    const newEmission = {
+                        id: response.data.data.emission_id || Date.now().toString(),
+                        ...emissionData
+                    };
+                    
+                    this.emissions.unshift(newEmission);
+                    this.totalEmissions += newEmission.amount;
+                    this.monthlyEmissions += newEmission.amount;
+                    
+                    // Update goal progress
+                    this.goalProgress = Math.min(Math.round((this.monthlyEmissions / 300) * 100), 100);
+                    
+                    this.showNotification('Carbon emission saved to database successfully!', 'success');
+                } else {
+                    console.log('❌ API save failed, adding locally only');
+                    this.addEmissionLocally(emissionData);
+                    this.showNotification('Emission added locally (API unavailable)', 'info');
+                }
+            } catch (error) {
+                console.error('Error saving emission to API:', error);
+                console.log('📡 API not available, adding locally');
+                
+                const emissionData = {
+                    category: this.emissionForm.category,
+                    activity: this.emissionForm.activity || this.emissionForm.category,
+                    amount: parseFloat(this.emissionForm.amount),
+                    unit: this.emissionForm.unit || 'kg',
+                    date: this.emissionForm.date,
+                    description: this.emissionForm.description
+                };
+                
+                this.addEmissionLocally(emissionData);
+                this.showNotification('Emission added locally (API unavailable)', 'info');
+            } finally {
+                // Reset form
+                this.emissionForm = {
+                    category: '',
+                    activity: '',
+                    amount: '',
+                    unit: '',
+                    date: new Date().toISOString().split('T')[0],
+                    description: ''
+                };
+                
+                this.loading = false;
+                this.updateChart();
+            }
+        },
+        
+        addEmissionLocally(emissionData) {
             const newEmission = {
                 id: Date.now().toString(),
-                category: this.emissionForm.category,
-                activity: this.emissionForm.activity || this.emissionForm.category,
-                amount: parseFloat(this.emissionForm.amount),
-                unit: 'kg',
-                date: this.emissionForm.date,
-                description: this.emissionForm.description
+                ...emissionData
             };
             
             this.emissions.unshift(newEmission);
             this.totalEmissions += newEmission.amount;
             this.monthlyEmissions += newEmission.amount;
             
-            // Reset form
-            this.emissionForm = {
-                category: '',
-                activity: '',
-                amount: '',
-                unit: '',
-                date: new Date().toISOString().split('T')[0],
-                description: ''
-            };
-            
-            this.showNotification('Carbon emission added successfully!', 'success');
-            this.updateChart();
+            // Update goal progress
+            this.goalProgress = Math.min(Math.round((this.monthlyEmissions / 300) * 100), 100);
         },
         
         deleteEmission(emissionId) {
@@ -957,8 +1095,12 @@ const app = createApp({
                 }
             } catch (error) {
                 console.error('Error loading recommendations:', error);
-                // If API fails, show message instead of error
-                console.log('API not available - using demo mode');
+                // Only show error for non-demo users
+                if (this.userProfile.user_id !== 'demo-user' && this.userProfile.user_id !== 'admin-user') {
+                    this.showNotification('Failed to load recommendations', 'error');
+                } else {
+                    console.log('API not available - using demo mode');
+                }
             } finally {
                 this.loading = false;
             }
@@ -1124,7 +1266,12 @@ const app = createApp({
                 }
             } catch (error) {
                 console.error('Error loading gamification profile:', error);
-                console.log('API not available - using demo mode');
+                // Only show error for non-demo users
+                if (this.userProfile.user_id !== 'demo-user' && this.userProfile.user_id !== 'admin-user') {
+                    this.showNotification('Failed to load achievements data', 'error');
+                } else {
+                    console.log('API not available - using demo mode');
+                }
             } finally {
                 this.loading = false;
             }
@@ -1371,38 +1518,36 @@ const app = createApp({
             
             this.loading = true;
             try {
-                // Simulate API call for registration
-                await new Promise(resolve => setTimeout(resolve, 1000));
-                
-                // Add user to pending registrations list
-                const newUser = {
-                    id: `pending_${Date.now()}`,
-                    firstName: this.registerForm.firstName,
-                    lastName: this.registerForm.lastName,
+                const registrationData = {
+                    first_name: this.registerForm.firstName,
+                    last_name: this.registerForm.lastName,
                     email: this.registerForm.email,
-                    organization: this.registerForm.organization || null,
-                    registeredAt: new Date().toISOString()
+                    password: this.registerForm.password,
+                    organization: this.registerForm.organization || null
                 };
                 
-                // Add to pending users list
-                this.pendingUsers.push(newUser);
+                // Make API call for registration
+                const response = await axios.post(`${this.apiBase}/auth/register`, registrationData, {
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
                 
-                // Update admin stats
-                this.adminStats.pendingRegistrations++;
-                
-                console.log('✅ Registration successful for:', newUser.email);
-                
-                this.showNotification(
-                    '🎉 Registration Successful! Your account request has been submitted for admin approval. You will be able to login once approved.',
-                    'success'
-                );
-                
-                // Also log success details
-                console.log('✅ REGISTRATION SUCCESSFUL!');
-                console.log('User can login after admin approval with:');
-                console.log('Email:', newUser.email);
-                console.log('Password: password123 (default)');
-                
+                if (response.data.success) {
+                    console.log('✅ Registration successful via API');
+                    this.showNotification(
+                        '🎉 Registration Successful! Your account has been created. You can now login with your credentials.',
+                        'success'
+                    );
+                } else {
+                    console.log('❌ API registration failed, using local simulation');
+                    this.handleLocalRegistration();
+                }
+            } catch (error) {
+                console.error('Error during API registration:', error);
+                console.log('📡 API not available, using local simulation');
+                this.handleLocalRegistration();
+            } finally {
                 // Reset form but stay on registration page to see success
                 this.registerForm = {
                     firstName: '',
@@ -1414,20 +1559,34 @@ const app = createApp({
                     acceptTerms: false
                 };
                 
-                console.log('=== REGISTRATION COMPLETE ===');
-                console.log('User should now appear in pending list');
-                console.log('Current pending users:', this.pendingUsers);
-                console.log('Admin stats:', this.adminStats);
-                
-                // Stay on registration page to see success message
-                // this.currentView = 'login';
-                
-            } catch (error) {
-                console.error('Registration error:', error);
-                this.showNotification('Registration failed. Please try again.', 'error');
-            } finally {
                 this.loading = false;
             }
+        },
+        
+        handleLocalRegistration() {
+            // Fallback local registration when API is not available
+            const newUser = {
+                id: `pending_${Date.now()}`,
+                firstName: this.registerForm.firstName,
+                lastName: this.registerForm.lastName,
+                email: this.registerForm.email,
+                organization: this.registerForm.organization || null,
+                registeredAt: new Date().toISOString()
+            };
+            
+            // Add to pending users list
+            this.pendingUsers.push(newUser);
+            
+            // Update admin stats
+            this.adminStats.pendingRegistrations++;
+            
+            console.log('✅ Local registration successful for:', newUser.email);
+            console.log('User can login after admin approval with password: password123');
+            
+            this.showNotification(
+                '🎉 Registration Successful! Your account request has been submitted for admin approval. You will be able to login once approved.',
+                'success'
+            );
         },
         
         // Admin Methods

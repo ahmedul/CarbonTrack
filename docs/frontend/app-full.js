@@ -308,14 +308,60 @@ const app = createApp({
             }
         },
         // Authentication methods
-        login() {
+        async login() {
             console.log('=== LOGIN ATTEMPT ===');
             console.log('Email:', this.loginForm.email);
             console.log('Password length:', this.loginForm.password.length);
             console.log('Is authenticated before login:', this.isAuthenticated);
             console.log('Current view:', this.currentView);
             
-            // Check demo user first (regular user)
+            this.loading = true;
+            
+            try {
+                // First try API login
+                const loginData = {
+                    email: this.loginForm.email,
+                    password: this.loginForm.password
+                };
+                
+                const response = await axios.post(`${this.apiBase}/auth/login`, loginData, {
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (response.data.success) {
+                    console.log('✅ Login successful via API');
+                    const userData = response.data.data;
+                    
+                    this.isAuthenticated = true;
+                    this.currentView = 'dashboard';
+                    this.authToken = userData.token;
+                    this.userProfile = {
+                        user_id: userData.user_id,
+                        email: userData.email,
+                        full_name: userData.full_name,
+                        carbon_budget: userData.carbon_budget || 500,
+                        role: userData.role || 'user'
+                    };
+                    localStorage.setItem('carbontrack_token', userData.token);
+                    
+                    // Load data from API
+                    this.loadEmissions();
+                    this.loadRecommendations();
+                    this.loadRecommendationStats();
+                    this.loadGamificationData();
+                    
+                    this.showNotification('Login successful! Welcome to CarbonTrack.', 'success');
+                    this.initializeChart();
+                    return;
+                }
+            } catch (error) {
+                console.log('📡 API login failed, trying demo accounts');
+                console.error('API Error:', error);
+            }
+            
+            // Fallback to demo accounts if API fails
             if (this.loginForm.email === 'demo@carbontrack.dev' && this.loginForm.password === 'password123') {
                 this.isAuthenticated = true;
                 this.currentView = 'dashboard';
@@ -393,6 +439,8 @@ const app = createApp({
                     this.showNotification('Invalid email or password. Please check your credentials and try again.', 'error');
                 }
             }
+            
+            this.loading = false;
         },
         
         logout() {
@@ -443,8 +491,40 @@ const app = createApp({
             };
         },
         
-        loadEmissions() {
-            console.log('Loading emissions data');
+        async loadEmissions() {
+            console.log('Loading emissions data from API');
+            this.loading = true;
+            
+            try {
+                // Make API call to load user's emissions
+                const response = await axios.get(`${this.apiBase}/emissions/`, {
+                    headers: {
+                        'Authorization': `Bearer ${this.authToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (response.data.success) {
+                    console.log('✅ Successfully loaded emissions from API');
+                    this.emissions = response.data.data.emissions || [];
+                    this.totalEmissions = response.data.data.total_emissions || 0;
+                    this.monthlyEmissions = response.data.data.monthly_emissions || 0;
+                    this.goalProgress = response.data.data.goal_progress || 0;
+                } else {
+                    console.log('❌ API call failed, using fallback demo data');
+                    this.loadDemoEmissions();
+                }
+            } catch (error) {
+                console.error('Error loading emissions from API:', error);
+                console.log('📡 API not available, using demo data as fallback');
+                this.loadDemoEmissions();
+            } finally {
+                this.loading = false;
+            }
+        },
+        
+        loadDemoEmissions() {
+            console.log('Loading demo emissions data as fallback');
             // Simulate loading emissions with realistic demo data
             this.emissions = [
                 {
@@ -857,6 +937,91 @@ const app = createApp({
             
             this.loading = true;
             try {
+                // Use mock data for demo mode (no backend)
+                if (this.userProfile.user_id === 'demo-user' || this.userProfile.user_id === 'admin-user') {
+                    // Mock recommendations data
+                    const mockRecommendations = [
+                        {
+                            id: 'rec_001',
+                            title: 'Switch to Public Transportation',
+                            description: 'Using public transport for your daily commute could reduce your carbon footprint by 65%',
+                            category: 'transportation',
+                            impact_level: 'high',
+                            effort_level: 'medium',
+                            potential_savings_kg: 45.2,
+                            implementation_tips: ['Check local bus and train schedules', 'Consider monthly passes for savings', 'Combine with walking or cycling'],
+                            estimated_cost_impact: 'save',
+                            timeframe: 'immediate'
+                        },
+                        {
+                            id: 'rec_002',
+                            title: 'Reduce Meat Consumption',
+                            description: 'Replacing 2 meat meals per week with plant-based alternatives can significantly lower food-related emissions',
+                            category: 'food',
+                            impact_level: 'high',
+                            effort_level: 'easy',
+                            potential_savings_kg: 28.7,
+                            implementation_tips: ['Try Meatless Monday', 'Explore plant-based protein sources', 'Start with familiar vegetables'],
+                            estimated_cost_impact: 'save',
+                            timeframe: 'immediate'
+                        },
+                        {
+                            id: 'rec_003',
+                            title: 'Optimize Home Heating',
+                            description: 'Lowering thermostat by 2°C and improving insulation can reduce heating emissions by 30%',
+                            category: 'energy',
+                            impact_level: 'medium',
+                            effort_level: 'medium',
+                            potential_savings_kg: 35.8,
+                            implementation_tips: ['Seal windows and doors', 'Use programmable thermostat', 'Wear warmer clothes indoors'],
+                            estimated_cost_impact: 'save',
+                            timeframe: 'short_term'
+                        },
+                        {
+                            id: 'rec_004',
+                            title: 'LED Light Conversion',
+                            description: 'Replace remaining incandescent bulbs with LED alternatives for immediate energy savings',
+                            category: 'energy',
+                            impact_level: 'low',
+                            effort_level: 'easy',
+                            potential_savings_kg: 12.4,
+                            implementation_tips: ['Start with most-used rooms', 'Check for utility rebates', 'Choose warm white for comfort'],
+                            estimated_cost_impact: 'save',
+                            timeframe: 'immediate'
+                        },
+                        {
+                            id: 'rec_005',
+                            title: 'Work From Home Strategy',
+                            description: 'Negotiate remote work 2-3 days per week to reduce commuting emissions',
+                            category: 'transportation',
+                            impact_level: 'high',
+                            effort_level: 'medium',
+                            potential_savings_kg: 52.1,
+                            implementation_tips: ['Propose trial period', 'Show productivity metrics', 'Set up efficient home office'],
+                            estimated_cost_impact: 'save',
+                            timeframe: 'short_term'
+                        }
+                    ];
+                    
+                    this.recommendations = mockRecommendations;
+                    
+                    // Mock stats for demo
+                    this.updateRecommendationStats({
+                        weekly_recommendations: mockRecommendations.slice(0, 3),
+                        stats: {
+                            total_recommendations: mockRecommendations.length,
+                            implemented_count: 2,
+                            potential_monthly_savings: 174.2,
+                            categories: {
+                                transportation: 2,
+                                energy: 2,
+                                food: 1
+                            }
+                        }
+                    });
+                    return;
+                }
+
                 const response = await axios.get(`${this.apiBase}/recommendations/`, {
                     headers: {
                         'Authorization': `Bearer ${this.authToken}`,
@@ -875,7 +1040,10 @@ const app = createApp({
                 }
             } catch (error) {
                 console.error('Error loading recommendations:', error);
-                this.showNotification('Failed to load recommendations', 'error');
+                // Only show error for non-demo users
+                if (this.userProfile.user_id !== 'demo-user' && this.userProfile.user_id !== 'admin-user') {
+                    this.showNotification('Failed to load recommendations', 'error');
+                }
             } finally {
                 this.loading = false;
             }
@@ -951,6 +1119,61 @@ const app = createApp({
             
             this.loading = true;
             try {
+                // Use mock data for demo mode (no backend)
+                if (this.userProfile.user_id === 'demo-user' || this.userProfile.user_id === 'admin-user') {
+                    // Mock gamification profile data
+                    this.gamificationProfile = {
+                        user_id: this.userProfile.user_id,
+                        total_points: 1250,
+                        level: 8,
+                        level_name: 'Eco Warrior',
+                        next_level_threshold: 1500,
+                        achievements_unlocked: 12,
+                        carbon_saved_total_kg: 187.5,
+                        streak_days: 23,
+                        rank: 15
+                    };
+                    
+                    this.recentAchievements = [
+                        {
+                            id: 'ach_001',
+                            name: 'First Steps',
+                            description: 'Logged your first carbon entry',
+                            icon: '🌱',
+                            points: 50,
+                            unlocked_date: '2025-09-28T10:30:00Z'
+                        },
+                        {
+                            id: 'ach_002',  
+                            name: 'Week Warrior',
+                            description: 'Tracked emissions for 7 consecutive days',
+                            icon: '📅',
+                            points: 100,
+                            unlocked_date: '2025-09-25T14:20:00Z'
+                        }
+                    ];
+                    
+                    this.activeChallenges = [
+                        {
+                            id: 'ch_001',
+                            name: 'Carbon Diet Challenge',
+                            description: 'Reduce food-related emissions by 20% this month',
+                            progress: 65,
+                            target: 100,
+                            reward_points: 200,
+                            end_date: '2025-10-31T23:59:59Z'
+                        }
+                    ];
+                    
+                    this.gamificationStats = {
+                        weekly_points: 180,
+                        monthly_points: 720,
+                        achievements_this_month: 3,
+                        challenges_completed: 2
+                    };
+                    return;
+                }
+
                 const response = await axios.get(`${this.apiBase}/gamification/profile`, {
                     headers: {
                         'Authorization': `Bearer ${this.authToken}`,
@@ -969,7 +1192,10 @@ const app = createApp({
                 }
             } catch (error) {
                 console.error('Error loading gamification profile:', error);
-                this.showNotification('Failed to load achievements data', 'error');
+                // Only show error for non-demo users
+                if (this.userProfile.user_id !== 'demo-user' && this.userProfile.user_id !== 'admin-user') {
+                    this.showNotification('Failed to load achievements data', 'error');
+                }
             } finally {
                 this.loading = false;
             }
