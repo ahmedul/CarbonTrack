@@ -266,6 +266,31 @@
             </div>
         </nav>
 
+        <!-- Global Notifications -->
+        <div v-if="notifications.length > 0" class="fixed top-20 right-4 z-50 space-y-2 max-w-md">
+            <div v-for="notification in notifications" :key="notification.id" 
+                 class="transform transition-all duration-500 ease-in-out"
+                 :class="['p-4 rounded-xl shadow-lg border-l-4 backdrop-blur-sm', 
+                         notification.type === 'success' ? 'bg-green-50/95 border-green-500 text-green-900' : 
+                         notification.type === 'error' ? 'bg-red-50/95 border-red-500 text-red-900' : 
+                         'bg-blue-50/95 border-blue-500 text-blue-900']">
+                <div class="flex items-start">
+                    <div class="mr-3 text-lg flex-shrink-0">
+                        <span v-if="notification.type === 'success'">🎉</span>
+                        <span v-else-if="notification.type === 'error'">❌</span>
+                        <span v-else>ℹ️</span>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="font-semibold text-sm leading-tight">{{ notification.message }}</div>
+                    </div>
+                    <button @click="removeNotification(notification.id)" 
+                            class="ml-3 flex-shrink-0 text-lg opacity-50 hover:opacity-100 transition-opacity focus:outline-none">
+                        ×
+                    </button>
+                </div>
+            </div>
+        </div>
+
         <!-- Main Content -->
         <div class="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-100">
         <div class="container mx-auto px-6 py-12">

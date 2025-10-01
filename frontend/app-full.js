@@ -338,6 +338,7 @@ const app = createApp({
                 this.initializeChart();
             } else if (this.loginForm.email === 'ahmedulkabir55@gmail.com' && this.loginForm.password === '*king*55') {
                 // Admin user login
+                console.log('✅ Admin credentials matched!');
                 this.isAuthenticated = true;
                 this.currentView = 'dashboard';
                 this.userProfile = {
@@ -386,7 +387,10 @@ const app = createApp({
                     this.showNotification(`Welcome back, ${approvedUser.name}!`, 'success');
                     this.initializeChart();
                 } else {
-                    this.showNotification('Invalid credentials or account not approved yet. Contact admin for approval.', 'error');
+                    console.log('❌ Login failed - invalid credentials');
+                    console.log('Attempted email:', this.loginForm.email);
+                    console.log('Password provided:', this.loginForm.password ? '(password provided)' : '(no password)');
+                    this.showNotification('Invalid email or password. Please check your credentials and try again.', 'error');
                 }
             }
         },
