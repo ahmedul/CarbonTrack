@@ -202,6 +202,73 @@ class OrganizationService:
         except ClientError as e:
             raise Exception(f"Failed to list organizations: {e.response['Error']['Message']}")
     
+    def list_all_organizations(self, limit: int = 100) -> List[Dict[str, Any]]:
+        """
+        List all organizations (Admin only)
+        
+        Args:
+            limit: Maximum number of organizations to return
+        
+        Returns:
+            List of all organizations
+        """
+        try:
+            response = self.orgs_table.scan(Limit=limit)
+            return response.get('Items', [])
+        except ClientError as e:
+            raise Exception(f"Failed to list all organizations: {e.response['Error']['Message']}")
+    
+    def get_organization_users(self, organization_id: str) -> List[Dict[str, Any]]:
+        """
+        Get all users in an organization (from team memberships)
+        
+        Args:
+            organization_id: Organization ID
+        
+        Returns:
+            List of unique users with their roles and teams
+        """
+        try:
+            # Get all team members in the organization
+            response = self.members_table.query(
+                IndexName='OrganizationMembersIndex',
+                KeyConditionExpression='organization_id = :org_id',
+                ExpressionAttributeValues={':org_id': organization_id}
+            )
+            
+            members = response.get('Items', [])
+            
+            # Group by user_id to get unique users with their teams
+            users_map = {}
+            for member in members:
+                user_id = member['user_id']
+                if user_id not in users_map:
+                    users_map[user_id] = {
+                        'user_id': user_id,
+                        'organization_id': organization_id,
+                        'teams': [],
+                        'roles': set(),
+                        'joined_at': member.get('joined_at', '')
+                    }
+                
+                users_map[user_id]['teams'].append({
+                    'team_id': member['team_id'],
+                    'role': member.get('role', 'member'),
+                    'permissions': member.get('permissions', [])
+                })
+                users_map[user_id]['roles'].add(member.get('role', 'member'))
+            
+            # Convert to list and clean up
+            users = []
+            for user_data in users_map.values():
+                user_data['roles'] = list(user_data['roles'])
+                user_data['team_count'] = len(user_data['teams'])
+                users.append(user_data)
+            
+            return users
+        except ClientError as e:
+            raise Exception(f"Failed to get organization users: {e.response['Error']['Message']}")
+    
     # ==================== Organization Statistics ====================
     
     def get_organization_stats(self, organization_id: str) -> Dict[str, Any]:

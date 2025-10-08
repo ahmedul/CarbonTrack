@@ -497,6 +497,139 @@ async def get_admin_stats(current_user: Dict[str, Any] = Depends(get_current_use
         print(f"Error fetching admin stats: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error fetching statistics")
 
+@app.get("/api/admin/organizations")
+async def get_all_organizations(current_user: Dict[str, Any] = Depends(get_current_user)):
+    """Get all organizations (Admin only)"""
+    if current_user.get('role') != 'admin':
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    
+    try:
+        organizations = org_service.list_all_organizations(limit=500)
+        
+        # Enrich with stats
+        enriched_orgs = []
+        for org in organizations:
+            try:
+                stats = org_service.get_organization_stats(org['organization_id'])
+                org['stats'] = {
+                    'total_teams': stats.get('total_teams', 0),
+                    'total_members': stats.get('total_members', 0),
+                    'total_emissions': stats.get('total_emissions', 0)
+                }
+            except Exception as e:
+                print(f"Error getting stats for org {org['organization_id']}: {e}")
+                org['stats'] = {'total_teams': 0, 'total_members': 0, 'total_emissions': 0}
+            
+            enriched_orgs.append(org)
+        
+        return {
+            "success": True,
+            "data": enriched_orgs,
+            "total": len(enriched_orgs)
+        }
+    except Exception as e:
+        print(f"Error fetching organizations: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error fetching organizations")
+
+@app.get("/api/admin/organizations/{organization_id}/users")
+async def get_organization_users_admin(
+    organization_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Get all users in an organization (Admin only)"""
+    if current_user.get('role') != 'admin':
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    
+    try:
+        # Get organization details
+        organization = org_service.get_organization(organization_id)
+        if not organization:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Organization not found"
+            )
+        
+        # Get all users in organization
+        org_users = org_service.get_organization_users(organization_id)
+        
+        # Enrich with user details from users table
+        dynamodb = get_dynamodb_client()
+        enriched_users = []
+        
+        for org_user in org_users:
+            try:
+                # Get full user details
+                user_response = dynamodb.get_item(
+                    TableName=USERS_TABLE,
+                    Key={'userId': {'S': org_user['user_id']}}
+                )
+                
+                if user_response.get('Item'):
+                    item = user_response['Item']
+                    enriched_users.append({
+                        'user_id': org_user['user_id'],
+                        'email': item.get('email', {}).get('S', ''),
+                        'full_name': item.get('full_name', {}).get('S', ''),
+                        'status': item.get('status', {}).get('S', ''),
+                        'role': item.get('role', {}).get('S', ''),
+                        'organization_roles': org_user.get('roles', []),
+                        'teams': org_user.get('teams', []),
+                        'team_count': org_user.get('team_count', 0),
+                        'joined_at': org_user.get('joined_at', ''),
+                        'created_at': item.get('created_at', {}).get('S', ''),
+                        'last_active': item.get('last_active', {}).get('S', '')
+                    })
+            except Exception as e:
+                print(f"Error enriching user {org_user['user_id']}: {e}")
+                # Add basic info even if enrichment fails
+                enriched_users.append({
+                    'user_id': org_user['user_id'],
+                    'organization_roles': org_user.get('roles', []),
+                    'teams': org_user.get('teams', []),
+                    'team_count': org_user.get('team_count', 0)
+                })
+        
+        return {
+            "success": True,
+            "organization": organization,
+            "users": enriched_users,
+            "total_users": len(enriched_users)
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error fetching organization users: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error fetching organization users")
+
+@app.get("/api/admin/organizations/{organization_id}/teams")
+async def get_organization_teams_admin(
+    organization_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Get all teams in an organization with member details (Admin only)"""
+    if current_user.get('role') != 'admin':
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    
+    try:
+        teams = org_service.list_organization_teams(organization_id)
+        
+        # Enrich with member details
+        enriched_teams = []
+        for team in teams:
+            members = org_service.list_team_members(team['team_id'])
+            team['members'] = members
+            team['member_count'] = len(members)
+            enriched_teams.append(team)
+        
+        return {
+            "success": True,
+            "data": enriched_teams,
+            "total": len(enriched_teams)
+        }
+    except Exception as e:
+        print(f"Error fetching organization teams: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error fetching teams")
+
 # Carbon tracking endpoints
 @app.get("/api/v1/carbon-emissions/activities")
 async def get_available_activities(region: str = "us_average"):

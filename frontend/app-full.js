@@ -163,6 +163,10 @@ const app = createApp({
             },
             pendingUsers: [],  // Will be loaded from API
             allUsers: [],  // Will be loaded from API
+            allOrganizations: [],  // Organizations list
+            selectedOrganization: null,  // Currently selected org
+            organizationUsers: [],  // Users in selected org
+            organizationTeams: [],  // Teams in selected org
             userFilter: 'all',
             userSearch: '',
             systemSettings: {
@@ -1669,6 +1673,60 @@ const app = createApp({
             } catch (error) {
                 console.error('Error loading admin stats:', error);
             }
+        },
+        
+        async loadAllOrganizations() {
+            try {
+                console.log('Loading all organizations...');
+                const response = await axios.get(`${this.apiBase}/api/admin/organizations`, {
+                    headers: {
+                        'Authorization': `Bearer ${this.authToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (response.data && response.data.success) {
+                    this.allOrganizations = response.data.data;
+                    console.log('✅ Loaded organizations:', this.allOrganizations.length);
+                } else {
+                    console.error('Unexpected response format:', response.data);
+                }
+            } catch (error) {
+                console.error('Error loading organizations:', error);
+                this.showNotification('Failed to load organizations', 'error');
+            }
+        },
+        
+        async loadOrganizationUsers(organizationId) {
+            try {
+                console.log('Loading organization users:', organizationId);
+                const response = await axios.get(`${this.apiBase}/api/admin/organizations/${organizationId}/users`, {
+                    headers: {
+                        'Authorization': `Bearer ${this.authToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (response.data && response.data.success) {
+                    this.organizationUsers = response.data.users;
+                    console.log('✅ Loaded organization users:', this.organizationUsers.length);
+                } else {
+                    console.error('Unexpected response format:', response.data);
+                }
+            } catch (error) {
+                console.error('Error loading organization users:', error);
+                this.showNotification('Failed to load organization users', 'error');
+            }
+        },
+        
+        async selectOrganization(org) {
+            this.selectedOrganization = org;
+            await this.loadOrganizationUsers(org.organization_id);
+        },
+        
+        clearOrganizationSelection() {
+            this.selectedOrganization = null;
+            this.organizationUsers = [];
         },
         
         async approveUser(userId) {
