@@ -135,14 +135,19 @@ def create_user(registration_data: UserRegistration) -> Dict[str, Any]:
         user_id = str(uuid.uuid4())
         now = datetime.utcnow().isoformat()
         
+        # Check if this is the admin user
+        is_admin = registration_data.email == 'ahmedulkabir55@gmail.com'
+        user_role = 'admin' if is_admin else 'user'
+        user_status = 'active' if is_admin else 'pending'  # Admin is auto-approved
+        
         item = {
             'userId': {'S': user_id},
             'user_id': {'S': user_id},  # Keep both for compatibility
             'email': {'S': registration_data.email},
             'password_hash': {'S': hash_password(registration_data.password)},
             'full_name': {'S': registration_data.full_name},
-            'role': {'S': 'user'},
-            'status': {'S': 'pending'},  # Default to pending, admin must approve
+            'role': {'S': user_role},
+            'status': {'S': user_status},  # Admin is auto-active, others pending
             'email_verified': {'BOOL': False},
             'carbon_budget': {'N': str(registration_data.carbon_budget)},
             'total_emissions': {'N': '0'},
@@ -168,8 +173,8 @@ def create_user(registration_data: UserRegistration) -> Dict[str, Any]:
             'user_id': user_id,
             'email': registration_data.email,
             'full_name': registration_data.full_name,
-            'role': 'user',
-            'status': 'pending',  # User needs admin approval
+            'role': user_role,
+            'status': user_status,  # Admin is auto-active, others need approval
             'carbon_budget': registration_data.carbon_budget,
             'total_emissions': 0,
             'current_month_emissions': 0,
@@ -198,7 +203,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> Dict[str, Any
         email: str = payload.get("sub")
         if email is None:
             raise credentials_exception
-    except jwt.PyJWTError:
+    except Exception:
         raise credentials_exception
     
     user = get_user_by_email(email)
@@ -543,14 +548,48 @@ async def get_carbon_emissions(current_user: Dict[str, Any] = Depends(get_curren
         # If no real data, return some sample data for demo purposes
         if not emissions:
             print(f"No emissions found for user {user_id}, returning sample data")
-            return await get_sample_emissions_data(user_id)
+            sample_emissions = await get_sample_emissions_data(user_id)
+            total = sum(e['co2_equivalent'] for e in sample_emissions)
+            monthly = sum(e['co2_equivalent'] for e in sample_emissions if e['date'].startswith(datetime.now().strftime('%Y-%m')))
+            return {
+                "success": True,
+                "data": {
+                    "emissions": sample_emissions,
+                    "total_emissions": round(total, 2),
+                    "monthly_emissions": round(monthly, 2),
+                    "goal_progress": min(93, int((monthly / 300) * 100)) if monthly else 0
+                }
+            }
         
-        return emissions
+        # Calculate totals
+        total_emissions = sum(e['co2_equivalent'] for e in emissions)
+        monthly_emissions = sum(e['co2_equivalent'] for e in emissions if e['date'].startswith(datetime.now().strftime('%Y-%m')))
+        
+        return {
+            "success": True,
+            "data": {
+                "emissions": emissions,
+                "total_emissions": round(total_emissions, 2),
+                "monthly_emissions": round(monthly_emissions, 2),
+                "goal_progress": min(100, int((monthly_emissions / 300) * 100)) if monthly_emissions else 0
+            }
+        }
         
     except Exception as e:
         print(f"Error querying emissions: {e}")
         # Fallback to sample data
-        return await get_sample_emissions_data(user_id)
+        sample_emissions = await get_sample_emissions_data(user_id)
+        total = sum(e['co2_equivalent'] for e in sample_emissions)
+        monthly = sum(e['co2_equivalent'] for e in sample_emissions if e['date'].startswith(datetime.now().strftime('%Y-%m')))
+        return {
+            "success": True,
+            "data": {
+                "emissions": sample_emissions,
+                "total_emissions": round(total, 2),
+                "monthly_emissions": round(monthly, 2),
+                "goal_progress": min(93, int((monthly / 300) * 100)) if monthly else 0
+            }
+        }
 
 async def get_sample_emissions_data(user_id: str):
     """Generate sample emissions data for demo purposes"""

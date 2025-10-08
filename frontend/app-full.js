@@ -341,29 +341,6 @@ const app = createApp({
                 
                 this.showNotification('Login successful! Welcome to CarbonTrack.', 'success');
                 this.initializeChart();
-            } else if (this.loginForm.email === 'ahmedulkabir55@gmail.com' && this.loginForm.password === '*king*55') {
-                // Admin user login
-                console.log('✅ Admin credentials matched!');
-                this.isAuthenticated = true;
-                this.currentView = 'dashboard';
-                this.userProfile = {
-                    user_id: 'admin-user',
-                    email: this.loginForm.email,
-                    full_name: 'Ahmed Ul Kabir',
-                    carbon_budget: 500,
-                    role: 'admin'  // Full admin access
-                };
-                localStorage.setItem('carbontrack_token', 'admin-token-123');
-                
-                // Load initial sample data
-                this.loadEmissions();
-                this.loadRecommendations();
-                this.loadRecommendationStats();
-                this.loadGamificationData();
-                this.loadAdminData();  // Load admin panel data
-                
-                this.showNotification('Welcome back, Admin! You have full access to all features.', 'success');
-                this.initializeChart();
             } else {
                 // Check approved users
                 const approvedUser = this.allUsers.find(user => 
@@ -1568,6 +1545,7 @@ const app = createApp({
         
         async loadPendingUsers() {
             try {
+                console.log('Loading pending users...');
                 const response = await axios.get(`${this.apiBase}/api/admin/pending-users`, {
                     headers: {
                         'Authorization': `Bearer ${this.authToken}`,
@@ -1575,7 +1553,9 @@ const app = createApp({
                     }
                 });
                 
-                if (response.data.success) {
+                console.log('Pending users response:', response.data);
+                
+                if (response.data && response.data.success) {
                     this.pendingUsers = response.data.pending_users.map(user => ({
                         id: user.user_id,
                         user_id: user.user_id,
@@ -1587,15 +1567,20 @@ const app = createApp({
                         role: user.role
                     }));
                     console.log('✅ Loaded pending users:', this.pendingUsers.length);
+                    console.log('Pending users data:', this.pendingUsers);
+                } else {
+                    console.error('Unexpected response format:', response.data);
                 }
             } catch (error) {
                 console.error('Error loading pending users:', error);
+                console.error('Error details:', error.response?.data);
                 this.showNotification('Failed to load pending users', 'error');
             }
         },
         
         async loadAllUsers() {
             try {
+                console.log('Loading all users...');
                 const response = await axios.get(`${this.apiBase}/api/admin/users`, {
                     headers: {
                         'Authorization': `Bearer ${this.authToken}`,
@@ -1603,7 +1588,9 @@ const app = createApp({
                     }
                 });
                 
-                if (response.data.success) {
+                console.log('All users response:', response.data);
+                
+                if (response.data && response.data.success) {
                     this.allUsers = response.data.users.map(user => ({
                         id: user.user_id,
                         user_id: user.user_id,
@@ -1616,9 +1603,13 @@ const app = createApp({
                         entriesCount: user.entries_count
                     }));
                     console.log('✅ Loaded all users:', this.allUsers.length);
+                    console.log('Users data:', this.allUsers);
+                } else {
+                    console.error('Unexpected response format:', response.data);
                 }
             } catch (error) {
                 console.error('Error loading all users:', error);
+                console.error('Error details:', error.response?.data);
                 this.showNotification('Failed to load users', 'error');
             }
         },
@@ -1648,6 +1639,7 @@ const app = createApp({
         
         async approveUser(userId) {
             try {
+                console.log('Approving user:', userId);
                 const response = await axios.post(
                     `${this.apiBase}/api/admin/users/${userId}/approve`, 
                     {},
@@ -1659,14 +1651,30 @@ const app = createApp({
                     }
                 );
                 
-                if (response.data.success) {
+                console.log('Approve response:', response);
+                console.log('Approve response data:', response.data);
+                
+                // Check if approval was successful (response.data.success or just a 200 status)
+                if (response.status === 200 || (response.data && response.data.success)) {
                     this.showNotification('✅ User approved successfully!', 'success');
                     // Reload data
                     await this.loadAdminData();
+                } else {
+                    console.error('Unexpected response structure:', response);
+                    this.showNotification('Unexpected response from server', 'error');
                 }
             } catch (error) {
                 console.error('Error approving user:', error);
-                this.showNotification('Failed to approve user', 'error');
+                console.error('Error details:', error.response?.data);
+                console.error('Error status:', error.response?.status);
+                
+                // Check if it actually succeeded despite the error
+                if (error.response && error.response.status === 200) {
+                    this.showNotification('✅ User approved successfully!', 'success');
+                    await this.loadAdminData();
+                } else {
+                    this.showNotification('Failed to approve user: ' + (error.response?.data?.detail || error.message), 'error');
+                }
             }
         },
         
@@ -1682,14 +1690,26 @@ const app = createApp({
                     }
                 );
                 
-                if (response.data.success) {
+                console.log('Reject response:', response.data);
+                
+                // Check if deletion was successful (response.data.success or just a 200 status)
+                if (response.status === 200 || response.data.success) {
                     this.showNotification('✅ User rejected and removed', 'success');
                     // Reload data
                     await this.loadAdminData();
+                } else {
+                    this.showNotification('Failed to reject user', 'error');
                 }
             } catch (error) {
                 console.error('Error rejecting user:', error);
-                this.showNotification('Failed to reject user', 'error');
+                console.error('Error response:', error.response?.data);
+                // Check if it's actually successful despite the error
+                if (error.response && error.response.status === 200) {
+                    this.showNotification('✅ User rejected and removed', 'success');
+                    await this.loadAdminData();
+                } else {
+                    this.showNotification('Failed to reject user', 'error');
+                }
             }
         },
         
