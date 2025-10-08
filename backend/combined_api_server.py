@@ -101,8 +101,15 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     return encoded_jwt
 
 def get_user_by_email(email: str) -> Optional[Dict[str, Any]]:
+    """
+    Query user by email using EmailIndex GSI.
+    Returns user dict if found, None if not found.
+    Raises exception on database errors.
+    """
     try:
         dynamodb = get_dynamodb_client()
+        print(f"Querying user by email: {email}")
+        
         response = dynamodb.query(
             TableName=USERS_TABLE,
             IndexName='EmailIndex',
@@ -110,11 +117,13 @@ def get_user_by_email(email: str) -> Optional[Dict[str, Any]]:
             ExpressionAttributeValues={':email': {'S': email}}
         )
         
-        if response['Items']:
+        print(f"Query response: Found {len(response.get('Items', []))} users with email {email}")
+        
+        if response.get('Items'):
             item = response['Items'][0]
             # Support both userId (primary key) and user_id (compatibility)
             user_id = item.get('userId', item.get('user_id', {})).get('S', '')
-            return {
+            user_data = {
                 'user_id': user_id,
                 'email': item['email']['S'],
                 'password_hash': item['password_hash']['S'],
@@ -130,12 +139,29 @@ def get_user_by_email(email: str) -> Optional[Dict[str, Any]]:
                 'updated_at': item['updated_at']['S'],
                 'last_active': item['last_active']['S']
             }
+            print(f"✅ Found user: {user_data['user_id']} - {user_data['email']}")
+            return user_data
+        
+        print(f"ℹ️ No user found with email: {email}")
         return None
+        
+    except ClientError as e:
+        error_code = e.response['Error']['Code']
+        error_msg = e.response['Error']['Message']
+        print(f"❌ DynamoDB ClientError in get_user_by_email: {error_code} - {error_msg}")
+        # Re-raise to let caller handle it
+        raise
     except Exception as e:
-        print(f"Error fetching user: {e}")
+        print(f"❌ Unexpected error fetching user by email: {type(e).__name__} - {str(e)}")
+        # Re-raise to let caller handle it
+        raise
         return None
 
 def create_user(registration_data: UserRegistration) -> Dict[str, Any]:
+    """
+    Create a new user in DynamoDB.
+    Note: Duplicate email check should be done BEFORE calling this function.
+    """
     try:
         dynamodb = get_dynamodb_client()
         user_id = str(uuid.uuid4())
@@ -145,6 +171,8 @@ def create_user(registration_data: UserRegistration) -> Dict[str, Any]:
         is_admin = registration_data.email == 'ahmedulkabir55@gmail.com'
         user_role = 'admin' if is_admin else 'user'
         user_status = 'active' if is_admin else 'pending'  # Admin is auto-approved
+        
+        print(f"Creating user: {registration_data.email} (role: {user_role}, status: {user_status})")
         
         item = {
             'userId': {'S': user_id},
@@ -169,11 +197,15 @@ def create_user(registration_data: UserRegistration) -> Dict[str, Any]:
             'last_active': {'S': now}
         }
         
+        # Use condition to ensure userId doesn't exist (though UUID collision is virtually impossible)
+        # NOTE: We check email uniqueness before this using EmailIndex GSI
         dynamodb.put_item(
             TableName=USERS_TABLE,
             Item=item,
-            ConditionExpression='attribute_not_exists(email)'
+            ConditionExpression='attribute_not_exists(userId)'
         )
+        
+        print(f"✅ DynamoDB put_item successful for user_id: {user_id}")
         
         return {
             'user_id': user_id,
@@ -190,12 +222,28 @@ def create_user(registration_data: UserRegistration) -> Dict[str, Any]:
         }
         
     except ClientError as e:
-        if e.response['Error']['Code'] == 'ConditionalCheckFailedException':
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error during registration")
+        error_code = e.response['Error']['Code']
+        error_msg = e.response['Error']['Message']
+        print(f"❌ DynamoDB ClientError in create_user: {error_code} - {error_msg}")
+        
+        if error_code == 'ConditionalCheckFailedException':
+            # This should never happen with UUID, but just in case
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+                detail="User ID collision detected. Please try again."
+            )
+        
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            detail=f"Database error during user creation: {error_msg}"
+        )
+        
     except Exception as e:
-        print(f"Registration error: {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error")
+        print(f"❌ Unexpected error in create_user: {type(e).__name__} - {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            detail="Internal server error during user creation"
+        )
 
 async def get_current_user(token: str = Depends(oauth2_scheme)) -> Dict[str, Any]:
     credentials_exception = HTTPException(
@@ -306,18 +354,49 @@ async def root():
 # Authentication endpoints
 @app.post("/api/register", response_model=TokenResponse)
 async def register_user(user_data: UserRegistration):
-    existing_user = get_user_by_email(user_data.email)
-    if existing_user:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
+    """
+    Register a new user account.
+    Checks for duplicate email before creating user.
+    Returns 409 Conflict if email already exists.
+    """
+    print(f"\n🔵 Registration attempt for email: {user_data.email}")
     
-    user = create_user(user_data)
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": user["email"], "user_id": user["user_id"]},
-        expires_delta=access_token_expires
-    )
-    
-    return TokenResponse(access_token=access_token, token_type="bearer", user=user)
+    try:
+        # Check if user already exists
+        existing_user = get_user_by_email(user_data.email)
+        
+        if existing_user:
+            print(f"❌ Registration failed: Email {user_data.email} already exists (user_id: {existing_user['user_id']})")
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT, 
+                detail=f"Email '{user_data.email}' is already registered. Please use a different email or login."
+            )
+        
+        print(f"✅ Email {user_data.email} is available, proceeding with registration")
+        
+        # Create new user
+        user = create_user(user_data)
+        print(f"✅ User created successfully: {user['user_id']} - {user['email']}")
+        
+        # Generate access token
+        access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token = create_access_token(
+            data={"sub": user["email"], "user_id": user["user_id"]},
+            expires_delta=access_token_expires
+        )
+        
+        print(f"✅ Registration complete for {user['email']} - Status: {user['status']}")
+        return TokenResponse(access_token=access_token, token_type="bearer", user=user)
+        
+    except HTTPException:
+        # Re-raise HTTP exceptions (like 409 Conflict)
+        raise
+    except Exception as e:
+        print(f"❌ Unexpected error during registration: {type(e).__name__} - {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Registration failed due to an internal error. Please try again."
+        )
 
 @app.post("/api/login", response_model=TokenResponse)
 async def login_user(user_credentials: UserLogin):
