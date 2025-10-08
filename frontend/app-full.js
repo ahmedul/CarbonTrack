@@ -782,7 +782,7 @@ const app = createApp({
                 return;
             }
             
-            setTimeout(function() {
+            setTimeout(() => {
                 const ctx = document.getElementById('emissionsChart');
                 if (ctx && !this.chart) {
                     this.chart = new Chart(ctx, {
@@ -876,7 +876,7 @@ const app = createApp({
                         }
                     });
                 }
-            }.bind(this), 100);
+            }, 100);
         },
         
         updateChart() {
@@ -897,7 +897,8 @@ const app = createApp({
                     var date = new Date(emission.date);
                     var label = (date.getMonth() + 1) + '/' + date.getDate();
                     chartLabels.push(label);
-                    chartData.push(emission.amount);
+                    // Use co2_equivalent if available, otherwise fall back to amount
+                    chartData.push(emission.co2_equivalent || emission.amount);
                 }
                 
                 // Update chart data
