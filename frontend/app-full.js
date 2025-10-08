@@ -1519,11 +1519,10 @@ const app = createApp({
             this.loading = true;
             try {
                 const registrationData = {
-                    first_name: this.registerForm.firstName,
-                    last_name: this.registerForm.lastName,
+                    full_name: `${this.registerForm.firstName} ${this.registerForm.lastName}`.trim(),
                     email: this.registerForm.email,
                     password: this.registerForm.password,
-                    organization: this.registerForm.organization || null
+                    carbon_budget: 500.0
                 };
                 
                 // Make API call for registration

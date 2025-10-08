@@ -398,10 +398,11 @@
                                 and <a href="#" class="text-green-600 hover:text-green-800 font-semibold">Privacy Policy</a>
                             </label>
                         </div>
-                        <button type="submit" :disabled="!isRegistrationValid" 
-                                :class="{'opacity-50 cursor-not-allowed': !isRegistrationValid}"
+                        <button type="submit" :disabled="!isRegistrationValid || loading" 
+                                :class="{'opacity-50 cursor-not-allowed': !isRegistrationValid || loading}"
                                 class="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white py-3 rounded-xl font-semibold text-lg shadow-lg transition-all duration-200">
-                            Create Account
+                            <span v-if="loading">⏳ Creating Account...</span>
+                            <span v-else>Create Account</span>
                         </button>
                     </form>
                     <div class="mt-6 pt-6 border-t border-gray-200 text-center">
