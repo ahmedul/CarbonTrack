@@ -27,6 +27,7 @@ from pathlib import Path
 # Add app directory to Python path for imports
 sys.path.insert(0, str(Path(__file__).parent / "app"))
 from services.carbon_calculator import CarbonCalculator, Region
+from services.organization_service import OrganizationService
 
 # Configuration
 USERS_TABLE = "carbontrack-users"
@@ -1545,6 +1546,436 @@ async def delete_emission_factor(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error deleting emission factor: {str(e)}"
+        )
+
+# ================================
+# Organization Management Endpoints
+# ================================
+
+# Pydantic models for organizations
+class OrganizationCreate(BaseModel):
+    name: str
+    industry: str = "Other"
+    size: str = "small"  # small, medium, large
+    subscription_tier: str = "free"  # free, professional, enterprise
+
+class OrganizationUpdate(BaseModel):
+    name: Optional[str] = None
+    industry: Optional[str] = None
+    size: Optional[str] = None
+    subscription_tier: Optional[str] = None
+    settings: Optional[Dict[str, Any]] = None
+    billing: Optional[Dict[str, Any]] = None
+
+class TeamCreate(BaseModel):
+    name: str
+    description: str = ""
+    team_lead_user_id: str
+    parent_team_id: str = ""
+
+class TeamUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    team_lead_user_id: Optional[str] = None
+    settings: Optional[Dict[str, Any]] = None
+
+class TeamMemberAdd(BaseModel):
+    user_id: str
+    role: str = "member"  # member, team_lead, manager
+
+# Initialize organization service
+org_service = OrganizationService(region=REGION)
+
+@app.post("/api/v1/organizations", status_code=status.HTTP_201_CREATED)
+async def create_organization(
+    org_data: OrganizationCreate,
+    current_user: Dict = Depends(get_current_user)
+):
+    """Create a new organization. User becomes the admin."""
+    try:
+        organization = org_service.create_organization(
+            name=org_data.name,
+            admin_user_id=current_user['user_id'],
+            industry=org_data.industry,
+            size=org_data.size,
+            subscription_tier=org_data.subscription_tier
+        )
+        return {
+            "success": True,
+            "message": "Organization created successfully",
+            "data": organization
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error creating organization: {str(e)}"
+        )
+
+@app.get("/api/v1/organizations/{organization_id}")
+async def get_organization(
+    organization_id: str,
+    current_user: Dict = Depends(get_current_user)
+):
+    """Get organization details"""
+    try:
+        organization = org_service.get_organization(organization_id)
+        if not organization:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Organization not found"
+            )
+        
+        return {
+            "success": True,
+            "data": organization
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching organization: {str(e)}"
+        )
+
+@app.put("/api/v1/organizations/{organization_id}")
+async def update_organization(
+    organization_id: str,
+    org_data: OrganizationUpdate,
+    current_user: Dict = Depends(get_current_user)
+):
+    """Update organization details (Admin only)"""
+    try:
+        # Check if user is admin of this organization
+        organization = org_service.get_organization(organization_id)
+        if not organization:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Organization not found"
+            )
+        
+        if organization['admin_user_id'] != current_user['user_id'] and current_user.get('role') != 'admin':
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only organization admin can update organization"
+            )
+        
+        # Build updates dict
+        updates = {k: v for k, v in org_data.dict().items() if v is not None}
+        
+        updated_org = org_service.update_organization(organization_id, updates)
+        
+        return {
+            "success": True,
+            "message": "Organization updated successfully",
+            "data": updated_org
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error updating organization: {str(e)}"
+        )
+
+@app.delete("/api/v1/organizations/{organization_id}")
+async def delete_organization(
+    organization_id: str,
+    current_user: Dict = Depends(get_current_user)
+):
+    """Delete organization (Admin only)"""
+    try:
+        organization = org_service.get_organization(organization_id)
+        if not organization:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Organization not found"
+            )
+        
+        if organization['admin_user_id'] != current_user['user_id'] and current_user.get('role') != 'admin':
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only organization admin can delete organization"
+            )
+        
+        org_service.delete_organization(organization_id)
+        
+        return {
+            "success": True,
+            "message": "Organization deleted successfully"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error deleting organization: {str(e)}"
+        )
+
+@app.get("/api/v1/organizations/{organization_id}/stats")
+async def get_organization_stats(
+    organization_id: str,
+    current_user: Dict = Depends(get_current_user)
+):
+    """Get organization statistics and dashboard data"""
+    try:
+        stats = org_service.get_organization_stats(organization_id)
+        return {
+            "success": True,
+            "data": stats
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching organization stats: {str(e)}"
+        )
+
+@app.get("/api/v1/users/{user_id}/organizations")
+async def list_user_organizations(
+    user_id: str,
+    current_user: Dict = Depends(get_current_user)
+):
+    """List all organizations where user is admin"""
+    try:
+        # Users can only list their own organizations unless they're admin
+        if user_id != current_user['user_id'] and current_user.get('role') != 'admin':
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Cannot access other users' organizations"
+            )
+        
+        organizations = org_service.list_user_organizations(user_id)
+        return {
+            "success": True,
+            "data": organizations
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error listing organizations: {str(e)}"
+        )
+
+# ================================
+# Team Management Endpoints
+# ================================
+
+@app.post("/api/v1/organizations/{organization_id}/teams", status_code=status.HTTP_201_CREATED)
+async def create_team(
+    organization_id: str,
+    team_data: TeamCreate,
+    current_user: Dict = Depends(get_current_user)
+):
+    """Create a new team in an organization"""
+    try:
+        team = org_service.create_team(
+            organization_id=organization_id,
+            name=team_data.name,
+            team_lead_user_id=team_data.team_lead_user_id,
+            description=team_data.description,
+            parent_team_id=team_data.parent_team_id
+        )
+        return {
+            "success": True,
+            "message": "Team created successfully",
+            "data": team
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error creating team: {str(e)}"
+        )
+
+@app.get("/api/v1/teams/{team_id}")
+async def get_team(
+    team_id: str,
+    current_user: Dict = Depends(get_current_user)
+):
+    """Get team details"""
+    try:
+        team = org_service.get_team(team_id)
+        if not team:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Team not found"
+            )
+        
+        return {
+            "success": True,
+            "data": team
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching team: {str(e)}"
+        )
+
+@app.get("/api/v1/organizations/{organization_id}/teams")
+async def list_organization_teams(
+    organization_id: str,
+    current_user: Dict = Depends(get_current_user)
+):
+    """List all teams in an organization"""
+    try:
+        teams = org_service.list_organization_teams(organization_id)
+        return {
+            "success": True,
+            "data": teams
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error listing teams: {str(e)}"
+        )
+
+@app.put("/api/v1/teams/{team_id}")
+async def update_team(
+    team_id: str,
+    team_data: TeamUpdate,
+    current_user: Dict = Depends(get_current_user)
+):
+    """Update team details"""
+    try:
+        # Build updates dict
+        updates = {k: v for k, v in team_data.dict().items() if v is not None}
+        
+        updated_team = org_service.update_team(team_id, updates)
+        
+        return {
+            "success": True,
+            "message": "Team updated successfully",
+            "data": updated_team
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error updating team: {str(e)}"
+        )
+
+@app.delete("/api/v1/teams/{team_id}")
+async def delete_team(
+    team_id: str,
+    current_user: Dict = Depends(get_current_user)
+):
+    """Delete team (archives it)"""
+    try:
+        org_service.delete_team(team_id)
+        return {
+            "success": True,
+            "message": "Team deleted successfully"
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error deleting team: {str(e)}"
+        )
+
+# ================================
+# Team Membership Endpoints
+# ================================
+
+@app.post("/api/v1/teams/{team_id}/members", status_code=status.HTTP_201_CREATED)
+async def add_team_member(
+    team_id: str,
+    member_data: TeamMemberAdd,
+    current_user: Dict = Depends(get_current_user)
+):
+    """Add a member to a team"""
+    try:
+        # Get team to get organization_id
+        team = org_service.get_team(team_id)
+        if not team:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Team not found"
+            )
+        
+        membership = org_service.add_team_member(
+            team_id=team_id,
+            user_id=member_data.user_id,
+            organization_id=team['organization_id'],
+            role=member_data.role,
+            invited_by=current_user['user_id']
+        )
+        
+        return {
+            "success": True,
+            "message": "Member added to team successfully",
+            "data": membership
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error adding team member: {str(e)}"
+        )
+
+@app.delete("/api/v1/teams/{team_id}/members/{user_id}")
+async def remove_team_member(
+    team_id: str,
+    user_id: str,
+    current_user: Dict = Depends(get_current_user)
+):
+    """Remove a member from a team"""
+    try:
+        org_service.remove_team_member(team_id, user_id)
+        return {
+            "success": True,
+            "message": "Member removed from team successfully"
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error removing team member: {str(e)}"
+        )
+
+@app.get("/api/v1/teams/{team_id}/members")
+async def list_team_members(
+    team_id: str,
+    current_user: Dict = Depends(get_current_user)
+):
+    """List all members of a team"""
+    try:
+        members = org_service.list_team_members(team_id)
+        return {
+            "success": True,
+            "data": members
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error listing team members: {str(e)}"
+        )
+
+@app.get("/api/v1/users/{user_id}/teams")
+async def list_user_teams(
+    user_id: str,
+    organization_id: Optional[str] = None,
+    current_user: Dict = Depends(get_current_user)
+):
+    """List all teams a user belongs to"""
+    try:
+        # Users can only list their own teams unless they're admin
+        if user_id != current_user['user_id'] and current_user.get('role') != 'admin':
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Cannot access other users' teams"
+            )
+        
+        teams = org_service.list_user_teams(user_id, organization_id)
+        return {
+            "success": True,
+            "data": teams
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error listing user teams: {str(e)}"
         )
 
 # Lambda handler for AWS deployment
