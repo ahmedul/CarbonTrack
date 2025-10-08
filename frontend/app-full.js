@@ -16,7 +16,7 @@ const app = createApp({
             currentView: 'home',
             isAuthenticated: false,
             authToken: null,
-            apiBase: 'https://ahzh0n0k6c.execute-api.us-east-1.amazonaws.com/prod/api/v1',
+            apiBase: 'https://nlkyarlri3.execute-api.eu-central-1.amazonaws.com/prod',
             
             // User data
             userProfile: {
@@ -324,27 +324,26 @@ const app = createApp({
                     password: this.loginForm.password
                 };
                 
-                const response = await axios.post(`${this.apiBase}/auth/login`, loginData, {
+                const response = await axios.post(`${this.apiBase}/api/login`, loginData, {
                     headers: {
                         'Content-Type': 'application/json'
                     }
                 });
                 
-                if (response.data.success) {
+                if (response.data && response.data.access_token) {
                     console.log('✅ Login successful via API');
-                    const userData = response.data.data;
                     
                     this.isAuthenticated = true;
                     this.currentView = 'dashboard';
-                    this.authToken = userData.token;
+                    this.authToken = response.data.access_token;
                     this.userProfile = {
-                        user_id: userData.user_id,
-                        email: userData.email,
-                        full_name: userData.full_name,
-                        carbon_budget: userData.carbon_budget || 500,
-                        role: userData.role || 'user'
+                        user_id: response.data.user.user_id,
+                        email: response.data.user.email,
+                        full_name: response.data.user.full_name,
+                        carbon_budget: response.data.user.carbon_budget || 500,
+                        role: response.data.user.role || 'user'
                     };
-                    localStorage.setItem('carbontrack_token', userData.token);
+                    localStorage.setItem('carbontrack_token', response.data.access_token);
                     
                     // Load data from API
                     this.loadEmissions();
@@ -497,7 +496,7 @@ const app = createApp({
             
             try {
                 // Make API call to load user's emissions
-                const response = await axios.get(`${this.apiBase}/emissions/`, {
+                const response = await axios.get(`${this.apiBase}/api/v1/carbon-emissions/`, {
                     headers: {
                         'Authorization': `Bearer ${this.authToken}`,
                         'Content-Type': 'application/json'
@@ -636,7 +635,7 @@ const app = createApp({
                 };
                 
                 // Make API call to save emission
-                const response = await axios.post(`${this.apiBase}/emissions/`, emissionData, {
+                const response = await axios.post(`${this.apiBase}/api/v1/carbon-emissions/`, emissionData, {
                     headers: {
                         'Authorization': `Bearer ${this.authToken}`,
                         'Content-Type': 'application/json'
@@ -1527,18 +1526,23 @@ const app = createApp({
                 };
                 
                 // Make API call for registration
-                const response = await axios.post(`${this.apiBase}/auth/register`, registrationData, {
+                const response = await axios.post(`${this.apiBase}/api/register`, registrationData, {
                     headers: {
                         'Content-Type': 'application/json'
                     }
                 });
                 
-                if (response.data.success) {
+                if (response.data && response.data.access_token) {
                     console.log('✅ Registration successful via API');
                     this.showNotification(
-                        '🎉 Registration Successful! Your account has been created. You can now login with your credentials.',
+                        '🎉 Registration Successful! Your account has been created. Redirecting to login...',
                         'success'
                     );
+                    // Switch to login view after 2 seconds
+                    setTimeout(() => {
+                        this.currentView = 'login';
+                        this.loginForm.email = this.registerForm.email;
+                    }, 2000);
                 } else {
                     console.log('❌ API registration failed, using local simulation');
                     this.handleLocalRegistration();
