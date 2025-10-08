@@ -1,0 +1,269 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'CarbonTrack Production Infrastructure - Simple Deployment'
+
+Parameters:
+  Environment:
+    Type: String
+    Description: Environment name
+    Default: production
+
+Resources:
+  # S3 Bucket for Frontend Static Files with unique name
+  FrontendBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub 'carbontrack-frontend-${Environment}-${AWS::AccountId}'
+      WebsiteConfiguration:
+        IndexDocument: index.html
+        ErrorDocument: index.html
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders: ['*']
+            AllowedMethods: [GET, HEAD]
+            AllowedOrigins: ['*']
+            MaxAge: 3600
+
+  # S3 Bucket Policy for Public Read Access
+  FrontendBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref FrontendBucket
+      PolicyDocument:
+        Statement:
+          - Sid: PublicReadGetObject
+            Effect: Allow
+            Principal: '*'
+            Action: s3:GetObject
+            Resource: !Sub '${FrontendBucket}/*'
+
+  # DynamoDB Table for Users with unique name
+  UsersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub 'carbontrack-users-${Environment}'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: user_id
+          AttributeType: S
+        - AttributeName: email
+          AttributeType: S
+      KeySchema:
+        - AttributeName: user_id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: EmailIndex
+          KeySchema:
+            - AttributeName: email
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # DynamoDB Table for Emissions with unique name
+  EmissionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub 'carbontrack-entries-${Environment}'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: user_id
+          AttributeType: S
+        - AttributeName: emission_id
+          AttributeType: S
+        - AttributeName: date
+          AttributeType: S
+      KeySchema:
+        - AttributeName: user_id
+          KeyType: HASH
+        - AttributeName: emission_id
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: DateIndex
+          KeySchema:
+            - AttributeName: user_id
+              KeyType: HASH
+            - AttributeName: date
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Lambda Execution Role
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'carbontrack-lambda-role-${Environment}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: DynamoDBAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                Resource:
+                  - !GetAtt UsersTable.Arn
+                  - !Sub '${UsersTable.Arn}/index/*'
+                  - !GetAtt EmissionsTable.Arn
+                  - !Sub '${EmissionsTable.Arn}/index/*'
+
+  # Lambda Function
+  ApiLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'carbontrack-api-${Environment}'
+      Runtime: python3.9
+      Handler: main.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Code:
+        ZipFile: |
+          import json
+          def handler(event, context):
+              return {
+                  'statusCode': 200,
+                  'headers': {
+                      'Access-Control-Allow-Origin': '*',
+                      'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+                      'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+                  },
+                  'body': json.dumps({'message': 'CarbonTrack API - Deployment successful!'})
+              }
+      Environment:
+        Variables:
+          USERS_TABLE: !Ref UsersTable
+          EMISSIONS_TABLE: !Ref EmissionsTable
+          REGION: !Ref 'AWS::Region'
+      Timeout: 30
+
+  # API Gateway
+  ApiGateway:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: !Sub 'carbontrack-api-${Environment}'
+      Description: CarbonTrack API Gateway
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+
+  # API Gateway Lambda Permission
+  ApiGatewayLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ApiLambda
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub '${ApiGateway}/*/*'
+
+  # API Gateway Proxy Resource
+  ApiGatewayProxyResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref ApiGateway
+      ParentId: !GetAtt ApiGateway.RootResourceId
+      PathPart: '{proxy+}'
+
+  # API Gateway Proxy Method
+  ApiGatewayProxyMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGateway
+      ResourceId: !Ref ApiGatewayProxyResource
+      HttpMethod: ANY
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiLambda.Arn}/invocations'
+
+  # API Gateway CORS Options Method
+  ApiGatewayOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGateway
+      ResourceId: !Ref ApiGatewayProxyResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            ResponseTemplates:
+              application/json: ''
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+          ResponseModels:
+            application/json: Empty
+
+  # API Gateway Deployment
+  ApiGatewayDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - ApiGatewayProxyMethod
+      - ApiGatewayOptionsMethod
+    Properties:
+      RestApiId: !Ref ApiGateway
+      StageName: prod
+
+Outputs:
+  FrontendBucket:
+    Description: S3 Bucket for frontend hosting
+    Value: !Ref FrontendBucket
+    Export:
+      Name: !Sub '${AWS::StackName}-FrontendBucket'
+
+  FrontendURL:
+    Description: Website URL
+    Value: !Sub 'http://${FrontendBucket}.s3-website.${AWS::Region}.amazonaws.com'
+    Export:
+      Name: !Sub '${AWS::StackName}-FrontendURL'
+
+  ApiGatewayURL:
+    Description: API Gateway endpoint URL
+    Value: !Sub 'https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/prod'
+    Export:
+      Name: !Sub '${AWS::StackName}-ApiGatewayURL'
+
+  UsersTable:
+    Description: DynamoDB Users Table
+    Value: !Ref UsersTable
+    Export:
+      Name: !Sub '${AWS::StackName}-UsersTable'
+
+  EmissionsTable:
+    Description: DynamoDB Emissions Table
+    Value: !Ref EmissionsTable
+    Export:
+      Name: !Sub '${AWS::StackName}-EmissionsTable'
