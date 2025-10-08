@@ -106,8 +106,10 @@ def get_user_by_email(email: str) -> Optional[Dict[str, Any]]:
         
         if response['Items']:
             item = response['Items'][0]
+            # Support both userId (primary key) and user_id (compatibility)
+            user_id = item.get('userId', item.get('user_id', {})).get('S', '')
             return {
-                'user_id': item['user_id']['S'],
+                'user_id': user_id,
                 'email': item['email']['S'],
                 'password_hash': item['password_hash']['S'],
                 'full_name': item['full_name']['S'],
@@ -134,7 +136,8 @@ def create_user(registration_data: UserRegistration) -> Dict[str, Any]:
         now = datetime.utcnow().isoformat()
         
         item = {
-            'user_id': {'S': user_id},
+            'userId': {'S': user_id},
+            'user_id': {'S': user_id},  # Keep both for compatibility
             'email': {'S': registration_data.email},
             'password_hash': {'S': hash_password(registration_data.password)},
             'full_name': {'S': registration_data.full_name},
