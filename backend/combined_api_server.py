@@ -21,6 +21,12 @@ from jose import jwt
 import uuid
 import os
 import uvicorn
+import sys
+from pathlib import Path
+
+# Add app directory to Python path for imports
+sys.path.insert(0, str(Path(__file__).parent / "app"))
+from services.carbon_calculator import CarbonCalculator, Region
 
 # Configuration
 USERS_TABLE = "carbontrack-users"
@@ -240,35 +246,43 @@ def get_emission_factor_from_db(category: str, activity: str) -> Dict[str, Any]:
         print(f"Error fetching emission factor: {str(e)}")
         return None
 
-def calculate_carbon_footprint(category: str, activity: str, amount: float, unit: str) -> Dict[str, Any]:
+def calculate_carbon_footprint(category: str, activity: str, amount: float, unit: str, region: str = "us_average") -> Dict[str, Any]:
     """
-    Calculate carbon footprint by fetching emission factors from database.
-    Falls back to default factor if activity not found.
+    Calculate carbon footprint using scientifically-backed emission factors from CarbonCalculator.
+    
+    Args:
+        category: Emission category (transportation, energy, food, waste)
+        activity: Specific activity type
+        amount: Amount of activity
+        unit: Unit of measurement
+        region: Regional variation for electricity (default: us_average)
+    
+    Returns:
+        Dictionary with CO2 equivalent and calculation details
     """
-    
-    # Try to get emission factor from database
-    emission_data = get_emission_factor_from_db(category, activity)
-    
-    if emission_data:
-        factor = emission_data['emission_factor']
-        region = emission_data['region']
-        description = emission_data.get('description', '')
-    else:
-        # Fallback to default factor if not found
-        factor = 0.3
-        region = "Global Average"
-        description = "Default emission factor (activity not found in database)"
-        print(f"Warning: No emission factor found for {category}/{activity}, using default: {factor}")
-    
-    co2_equivalent = amount * factor
-    
-    return {
-        "co2_equivalent": co2_equivalent,
-        "emission_factor": factor,
-        "calculation_details": f"{amount} {unit} × {factor} kg CO2/{unit}",
-        "region": region,
-        "description": description
-    }
+    try:
+        # Initialize calculator with specified region
+        try:
+            region_enum = Region(region)
+            calculator = CarbonCalculator(region=region_enum)
+        except ValueError:
+            calculator = CarbonCalculator(region=Region.US_AVERAGE)
+        
+        # Use the carbon calculator's calculation method
+        result = calculator.calculate_emission(category, activity, amount, unit)
+        
+        return result
+        
+    except Exception as e:
+        print(f"Error calculating carbon footprint: {e}")
+        # Fallback calculation
+        co2_equivalent = amount * 0.3
+        return {
+            "co2_equivalent": co2_equivalent,
+            "emission_factor": 0.3,
+            "calculation_details": f"Error in calculation: {str(e)}. Using fallback: {amount} {unit} × 0.3 kg CO2/{unit}",
+            "region": "Global Average"
+        }
 
 # Health check endpoint
 @app.get("/")
@@ -484,33 +498,572 @@ async def get_admin_stats(current_user: Dict[str, Any] = Depends(get_current_use
 
 # Carbon tracking endpoints
 @app.get("/api/v1/carbon-emissions/activities")
-async def get_available_activities():
-    """Get available carbon calculation activities"""
-    return {
-        "message": "Available carbon calculation activities",
-        "categories": {
-            "transportation": {
-                "activities": [
-                    {"key": "car_drive", "name": "Car Drive", "unit": "km", "factor": 0.21},
-                    {"key": "flight", "name": "Flight", "unit": "km", "factor": 0.255},
-                    {"key": "bus", "name": "Bus", "unit": "km", "factor": 0.089},
-                    {"key": "train", "name": "Train", "unit": "km", "factor": 0.041},
-                ]
+async def get_available_activities(region: str = "us_average"):
+    """
+    Get available carbon calculation activities with scientifically-backed emission factors
+    
+    Returns comprehensive emission factors from EPA, IPCC, DEFRA, and other authoritative sources.
+    All factors are sourced from peer-reviewed research and government agencies.
+    
+    Args:
+        region: Regional variation for electricity (us_average, eu_average, uk, canada, australia)
+    
+    Returns:
+        Dictionary with all available activities grouped by category with emission factors
+    """
+    try:
+        # Initialize calculator with specified region
+        try:
+            region_enum = Region(region)
+            calculator = CarbonCalculator(region=region_enum)
+        except ValueError:
+            calculator = CarbonCalculator(region=Region.US_AVERAGE)
+        
+        return {
+            "message": "Available carbon calculation activities with scientific emission factors",
+            "sources": {
+                "transportation": "EPA Emission Factors Hub, DEFRA UK GHG Conversion Factors",
+                "energy": "EPA eGRID Database, IEA Energy Statistics, EIA",
+                "food": "FAO Livestock's Long Shadow Report, Academic LCA Studies",
+                "waste": "EPA WARM Model, DEFRA Waste Emission Factors"
             },
-            "energy": {
-                "activities": [
-                    {"key": "electricity", "name": "Electricity", "unit": "kWh", "factor": 0.4},
-                    {"key": "natural_gas", "name": "Natural Gas", "unit": "kWh", "factor": 0.2},
-                ]
-            },
-            "food": {
-                "activities": [
-                    {"key": "beef", "name": "Beef", "unit": "kg", "factor": 27.0},
-                    {"key": "chicken", "name": "Chicken", "unit": "kg", "factor": 6.9},
-                ]
+            "region": calculator.region.value,
+            "last_updated": "2024-09",
+            "categories": {
+                "transportation": {
+                    "description": "Emission factors in kg CO₂e per kilometer",
+                    "source": "EPA, DEFRA, IPCC",
+                    "activities": {
+                        # Personal Vehicles
+                        "car_gasoline_small": {
+                            "name": "Small Gasoline Car",
+                            "factor": float(calculator.transportation_factors["car_gasoline_small"]),
+                            "unit": "km",
+                            "unit_display": "kg CO₂e/km",
+                            "source": "EPA Emission Factors Hub",
+                            "description": "Compact/subcompact gasoline vehicle"
+                        },
+                        "car_gasoline_medium": {
+                            "name": "Medium Gasoline Car",
+                            "factor": float(calculator.transportation_factors["car_gasoline_medium"]),
+                            "unit": "km",
+                            "unit_display": "kg CO₂e/km",
+                            "source": "EPA Emission Factors Hub",
+                            "description": "Mid-size sedan or crossover"
+                        },
+                        "car_gasoline_large": {
+                            "name": "Large Gasoline Car/SUV",
+                            "factor": float(calculator.transportation_factors["car_gasoline_large"]),
+                            "unit": "km",
+                            "unit_display": "kg CO₂e/km",
+                            "source": "EPA Emission Factors Hub",
+                            "description": "Full-size car, SUV, or truck"
+                        },
+                        "car_diesel_small": {
+                            "name": "Small Diesel Car",
+                            "factor": float(calculator.transportation_factors["car_diesel_small"]),
+                            "unit": "km",
+                            "unit_display": "kg CO₂e/km",
+                            "source": "DEFRA GHG Conversion Factors",
+                            "description": "Compact diesel vehicle"
+                        },
+                        "car_diesel_medium": {
+                            "name": "Medium Diesel Car",
+                            "factor": float(calculator.transportation_factors["car_diesel_medium"]),
+                            "unit": "km",
+                            "unit_display": "kg CO₂e/km",
+                            "source": "DEFRA GHG Conversion Factors",
+                            "description": "Mid-size diesel vehicle"
+                        },
+                        "car_hybrid": {
+                            "name": "Hybrid Vehicle",
+                            "factor": float(calculator.transportation_factors["car_hybrid"]),
+                            "unit": "km",
+                            "unit_display": "kg CO₂e/km",
+                            "source": "EPA Fuel Economy Data",
+                            "description": "Gasoline-electric hybrid"
+                        },
+                        "car_electric": {
+                            "name": "Electric Vehicle",
+                            "factor": float(calculator.transportation_factors["car_electric"]),
+                            "unit": "km",
+                            "unit_display": "kg CO₂e/km",
+                            "source": "EPA eGRID + Vehicle Efficiency",
+                            "description": "Battery electric vehicle (grid-dependent)",
+                            "note": "Emissions vary by regional electricity grid"
+                        },
+                        "motorcycle": {
+                            "name": "Motorcycle",
+                            "factor": float(calculator.transportation_factors["motorcycle"]),
+                            "unit": "km",
+                            "unit_display": "kg CO₂e/km",
+                            "source": "DEFRA GHG Conversion Factors"
+                        },
+                        
+                        # Public Transportation
+                        "bus_city": {
+                            "name": "City Bus",
+                            "factor": float(calculator.transportation_factors["bus_city"]),
+                            "unit": "km",
+                            "unit_display": "kg CO₂e/km per passenger",
+                            "source": "DEFRA GHG Conversion Factors"
+                        },
+                        "bus_coach": {
+                            "name": "Long Distance Coach",
+                            "factor": float(calculator.transportation_factors["bus_coach"]),
+                            "unit": "km",
+                            "unit_display": "kg CO₂e/km per passenger",
+                            "source": "DEFRA GHG Conversion Factors"
+                        },
+                        "train_local": {
+                            "name": "Local/Commuter Train",
+                            "factor": float(calculator.transportation_factors["train_local"]),
+                            "unit": "km",
+                            "unit_display": "kg CO₂e/km per passenger",
+                            "source": "DEFRA GHG Conversion Factors"
+                        },
+                        "train_intercity": {
+                            "name": "Intercity Train",
+                            "factor": float(calculator.transportation_factors["train_intercity"]),
+                            "unit": "km",
+                            "unit_display": "kg CO₂e/km per passenger",
+                            "source": "DEFRA GHG Conversion Factors"
+                        },
+                        "metro_subway": {
+                            "name": "Metro/Subway",
+                            "factor": float(calculator.transportation_factors["metro_subway"]),
+                            "unit": "km",
+                            "unit_display": "kg CO₂e/km per passenger",
+                            "source": "DEFRA GHG Conversion Factors"
+                        },
+                        
+                        # Aviation
+                        "flight_domestic_short": {
+                            "name": "Domestic Flight (Short)",
+                            "factor": float(calculator.transportation_factors["flight_domestic_short"]),
+                            "unit": "km",
+                            "unit_display": "kg CO₂e/km per passenger",
+                            "source": "DEFRA Aviation Emission Factors",
+                            "description": "Flights under 500km"
+                        },
+                        "flight_domestic_medium": {
+                            "name": "Domestic Flight (Medium)",
+                            "factor": float(calculator.transportation_factors["flight_domestic_medium"]),
+                            "unit": "km",
+                            "unit_display": "kg CO₂e/km per passenger",
+                            "source": "DEFRA Aviation Emission Factors",
+                            "description": "Flights 500-1500km"
+                        },
+                        "flight_international": {
+                            "name": "International Flight",
+                            "factor": float(calculator.transportation_factors["flight_international"]),
+                            "unit": "km",
+                            "unit_display": "kg CO₂e/km per passenger",
+                            "source": "DEFRA Aviation Emission Factors",
+                            "description": "Flights over 1500km"
+                        },
+                        "flight_first_class": {
+                            "name": "First Class Flight",
+                            "factor": float(calculator.transportation_factors["flight_first_class"]),
+                            "unit": "km",
+                            "unit_display": "kg CO₂e/km per passenger",
+                            "source": "DEFRA Aviation Emission Factors",
+                            "description": "Premium seating (higher emissions per passenger)"
+                        },
+                        
+                        # Other Transport
+                        "taxi": {
+                            "name": "Taxi",
+                            "factor": float(calculator.transportation_factors["taxi"]),
+                            "unit": "km",
+                            "unit_display": "kg CO₂e/km",
+                            "source": "DEFRA GHG Conversion Factors"
+                        },
+                        "ferry": {
+                            "name": "Ferry",
+                            "factor": float(calculator.transportation_factors["ferry"]),
+                            "unit": "km",
+                            "unit_display": "kg CO₂e/km per passenger",
+                            "source": "DEFRA GHG Conversion Factors"
+                        },
+                        "cruise_ship": {
+                            "name": "Cruise Ship",
+                            "factor": float(calculator.transportation_factors["cruise_ship"]),
+                            "unit": "km",
+                            "unit_display": "kg CO₂e/km per passenger",
+                            "source": "Academic LCA Studies"
+                        }
+                    }
+                },
+                "energy": {
+                    "description": "Emission factors for energy consumption",
+                    "source": "EPA eGRID, EIA, DEFRA",
+                    "activities": {
+                        "electricity": {
+                            "name": "Electricity",
+                            "factor": float(calculator.energy_factors["electricity"]),
+                            "unit": "kWh",
+                            "unit_display": "kg CO₂e/kWh",
+                            "source": "EPA eGRID Database",
+                            "description": f"Grid emission factor for {calculator.region.value}",
+                            "regional_variations": {
+                                "us_average": 0.401,
+                                "eu_average": 0.276,
+                                "uk": 0.233,
+                                "canada": 0.130,
+                                "australia": 0.81,
+                                "global_average": 0.475
+                            }
+                        },
+                        "natural_gas_therms": {
+                            "name": "Natural Gas (Therms)",
+                            "factor": float(calculator.energy_factors["natural_gas_therms"]),
+                            "unit": "therms",
+                            "unit_display": "kg CO₂e/therm",
+                            "source": "EPA Emission Factors"
+                        },
+                        "natural_gas_kwh": {
+                            "name": "Natural Gas (kWh)",
+                            "factor": float(calculator.energy_factors["natural_gas_kwh"]),
+                            "unit": "kWh",
+                            "unit_display": "kg CO₂e/kWh",
+                            "source": "EPA Emission Factors"
+                        },
+                        "natural_gas_m3": {
+                            "name": "Natural Gas (Cubic Meters)",
+                            "factor": float(calculator.energy_factors["natural_gas_m3"]),
+                            "unit": "m³",
+                            "unit_display": "kg CO₂e/m³",
+                            "source": "EPA Emission Factors"
+                        },
+                        "heating_oil_liters": {
+                            "name": "Heating Oil (Liters)",
+                            "factor": float(calculator.energy_factors["heating_oil_liters"]),
+                            "unit": "liters",
+                            "unit_display": "kg CO₂e/liter",
+                            "source": "EPA Emission Factors"
+                        },
+                        "heating_oil_gallons": {
+                            "name": "Heating Oil (Gallons)",
+                            "factor": float(calculator.energy_factors["heating_oil_gallons"]),
+                            "unit": "gallons",
+                            "unit_display": "kg CO₂e/gallon",
+                            "source": "EPA Emission Factors"
+                        },
+                        "propane_liters": {
+                            "name": "Propane (Liters)",
+                            "factor": float(calculator.energy_factors["propane_liters"]),
+                            "unit": "liters",
+                            "unit_display": "kg CO₂e/liter",
+                            "source": "EPA Emission Factors"
+                        },
+                        "propane_gallons": {
+                            "name": "Propane (Gallons)",
+                            "factor": float(calculator.energy_factors["propane_gallons"]),
+                            "unit": "gallons",
+                            "unit_display": "kg CO₂e/gallon",
+                            "source": "EPA Emission Factors"
+                        },
+                        "coal_kg": {
+                            "name": "Coal (Kilograms)",
+                            "factor": float(calculator.energy_factors["coal_kg"]),
+                            "unit": "kg",
+                            "unit_display": "kg CO₂e/kg",
+                            "source": "IPCC Guidelines"
+                        },
+                        "wood_kg": {
+                            "name": "Wood/Biomass (Kilograms)",
+                            "factor": float(calculator.energy_factors["wood_kg"]),
+                            "unit": "kg",
+                            "unit_display": "kg CO₂e/kg",
+                            "source": "IPCC Guidelines",
+                            "description": "Processing/transport emissions only (considered carbon neutral)"
+                        }
+                    }
+                },
+                "food": {
+                    "description": "Emission factors in kg CO₂e per kg of food",
+                    "source": "FAO, Academic LCA Studies",
+                    "activities": {
+                        # Meat & Animal Products
+                        "beef": {
+                            "name": "Beef",
+                            "factor": float(calculator.food_factors["beef"]),
+                            "unit": "kg",
+                            "unit_display": "kg CO₂e/kg",
+                            "source": "FAO Livestock's Long Shadow Report",
+                            "description": "Highest carbon impact food"
+                        },
+                        "lamb": {
+                            "name": "Lamb",
+                            "factor": float(calculator.food_factors["lamb"]),
+                            "unit": "kg",
+                            "unit_display": "kg CO₂e/kg",
+                            "source": "FAO Livestock Studies"
+                        },
+                        "pork": {
+                            "name": "Pork",
+                            "factor": float(calculator.food_factors["pork"]),
+                            "unit": "kg",
+                            "unit_display": "kg CO₂e/kg",
+                            "source": "FAO Livestock Studies"
+                        },
+                        "chicken": {
+                            "name": "Chicken",
+                            "factor": float(calculator.food_factors["chicken"]),
+                            "unit": "kg",
+                            "unit_display": "kg CO₂e/kg",
+                            "source": "FAO Livestock Studies"
+                        },
+                        "turkey": {
+                            "name": "Turkey",
+                            "factor": float(calculator.food_factors["turkey"]),
+                            "unit": "kg",
+                            "unit_display": "kg CO₂e/kg",
+                            "source": "FAO Livestock Studies"
+                        },
+                        "fish_farmed": {
+                            "name": "Farmed Fish",
+                            "factor": float(calculator.food_factors["fish_farmed"]),
+                            "unit": "kg",
+                            "unit_display": "kg CO₂e/kg",
+                            "source": "Academic Aquaculture LCA"
+                        },
+                        "fish_wild": {
+                            "name": "Wild-Caught Fish",
+                            "factor": float(calculator.food_factors["fish_wild"]),
+                            "unit": "kg",
+                            "unit_display": "kg CO₂e/kg",
+                            "source": "Academic Fisheries LCA"
+                        },
+                        
+                        # Dairy
+                        "milk": {
+                            "name": "Milk",
+                            "factor": float(calculator.food_factors["milk"]),
+                            "unit": "liters",
+                            "unit_display": "kg CO₂e/liter",
+                            "source": "FAO Dairy Studies"
+                        },
+                        "cheese": {
+                            "name": "Cheese",
+                            "factor": float(calculator.food_factors["cheese"]),
+                            "unit": "kg",
+                            "unit_display": "kg CO₂e/kg",
+                            "source": "FAO Dairy Studies"
+                        },
+                        "butter": {
+                            "name": "Butter",
+                            "factor": float(calculator.food_factors["butter"]),
+                            "unit": "kg",
+                            "unit_display": "kg CO₂e/kg",
+                            "source": "FAO Dairy Studies"
+                        },
+                        "yogurt": {
+                            "name": "Yogurt",
+                            "factor": float(calculator.food_factors["yogurt"]),
+                            "unit": "kg",
+                            "unit_display": "kg CO₂e/kg",
+                            "source": "FAO Dairy Studies"
+                        },
+                        "eggs": {
+                            "name": "Eggs",
+                            "factor": float(calculator.food_factors["eggs"]),
+                            "unit": "kg",
+                            "unit_display": "kg CO₂e/kg",
+                            "source": "FAO Poultry Studies"
+                        },
+                        
+                        # Plant-Based
+                        "rice": {
+                            "name": "Rice",
+                            "factor": float(calculator.food_factors["rice"]),
+                            "unit": "kg",
+                            "unit_display": "kg CO₂e/kg",
+                            "source": "Academic Agriculture LCA",
+                            "description": "Higher due to methane from paddy fields"
+                        },
+                        "wheat": {
+                            "name": "Wheat",
+                            "factor": float(calculator.food_factors["wheat"]),
+                            "unit": "kg",
+                            "unit_display": "kg CO₂e/kg",
+                            "source": "Academic Agriculture LCA"
+                        },
+                        "potatoes": {
+                            "name": "Potatoes",
+                            "factor": float(calculator.food_factors["potatoes"]),
+                            "unit": "kg",
+                            "unit_display": "kg CO₂e/kg",
+                            "source": "Academic Agriculture LCA"
+                        },
+                        "vegetables_root": {
+                            "name": "Root Vegetables",
+                            "factor": float(calculator.food_factors["vegetables_root"]),
+                            "unit": "kg",
+                            "unit_display": "kg CO₂e/kg",
+                            "source": "Academic Agriculture LCA"
+                        },
+                        "vegetables_leafy": {
+                            "name": "Leafy Vegetables",
+                            "factor": float(calculator.food_factors["vegetables_leafy"]),
+                            "unit": "kg",
+                            "unit_display": "kg CO₂e/kg",
+                            "source": "Academic Agriculture LCA",
+                            "description": "Often greenhouse grown"
+                        },
+                        "fruits_local": {
+                            "name": "Local Fruits",
+                            "factor": float(calculator.food_factors["fruits_local"]),
+                            "unit": "kg",
+                            "unit_display": "kg CO₂e/kg",
+                            "source": "Academic Agriculture LCA"
+                        },
+                        "fruits_tropical": {
+                            "name": "Tropical Fruits",
+                            "factor": float(calculator.food_factors["fruits_tropical"]),
+                            "unit": "kg",
+                            "unit_display": "kg CO₂e/kg",
+                            "source": "Academic Agriculture LCA",
+                            "description": "Higher due to transport emissions"
+                        },
+                        "nuts": {
+                            "name": "Nuts",
+                            "factor": float(calculator.food_factors["nuts"]),
+                            "unit": "kg",
+                            "unit_display": "kg CO₂e/kg",
+                            "source": "Academic Agriculture LCA"
+                        },
+                        "legumes": {
+                            "name": "Legumes/Beans",
+                            "factor": float(calculator.food_factors["legumes"]),
+                            "unit": "kg",
+                            "unit_display": "kg CO₂e/kg",
+                            "source": "Academic Agriculture LCA"
+                        },
+                        
+                        # Processed Foods
+                        "bread": {
+                            "name": "Bread",
+                            "factor": float(calculator.food_factors["bread"]),
+                            "unit": "kg",
+                            "unit_display": "kg CO₂e/kg",
+                            "source": "Academic Food Processing LCA"
+                        },
+                        "coffee": {
+                            "name": "Coffee",
+                            "factor": float(calculator.food_factors["coffee"]),
+                            "unit": "kg",
+                            "unit_display": "kg CO₂e/kg of beans",
+                            "source": "Academic Coffee LCA Studies"
+                        },
+                        "chocolate": {
+                            "name": "Chocolate",
+                            "factor": float(calculator.food_factors["chocolate"]),
+                            "unit": "kg",
+                            "unit_display": "kg CO₂e/kg",
+                            "source": "Academic Cacao LCA Studies"
+                        }
+                    }
+                },
+                "waste": {
+                    "description": "Emission factors for waste disposal and recycling (negative = carbon savings)",
+                    "source": "EPA WARM Model, DEFRA",
+                    "activities": {
+                        # Disposal Methods
+                        "landfill_mixed": {
+                            "name": "Landfill (Mixed Waste)",
+                            "factor": float(calculator.waste_factors["landfill_mixed"]),
+                            "unit": "kg",
+                            "unit_display": "kg CO₂e/kg",
+                            "source": "EPA WARM Model"
+                        },
+                        "landfill_food": {
+                            "name": "Landfill (Food Waste)",
+                            "factor": float(calculator.waste_factors["landfill_food"]),
+                            "unit": "kg",
+                            "unit_display": "kg CO₂e/kg",
+                            "source": "EPA WARM Model",
+                            "description": "Higher due to methane generation"
+                        },
+                        "landfill_paper": {
+                            "name": "Landfill (Paper)",
+                            "factor": float(calculator.waste_factors["landfill_paper"]),
+                            "unit": "kg",
+                            "unit_display": "kg CO₂e/kg",
+                            "source": "EPA WARM Model"
+                        },
+                        "incineration": {
+                            "name": "Waste Incineration",
+                            "factor": float(calculator.waste_factors["incineration"]),
+                            "unit": "kg",
+                            "unit_display": "kg CO₂e/kg",
+                            "source": "EPA WARM Model"
+                        },
+                        
+                        # Recycling (negative = carbon savings)
+                        "recycling_paper": {
+                            "name": "Paper Recycling",
+                            "factor": float(calculator.waste_factors["recycling_paper"]),
+                            "unit": "kg",
+                            "unit_display": "kg CO₂e/kg (carbon savings)",
+                            "source": "EPA WARM Model",
+                            "description": "Negative value = carbon savings vs new production"
+                        },
+                        "recycling_plastic": {
+                            "name": "Plastic Recycling",
+                            "factor": float(calculator.waste_factors["recycling_plastic"]),
+                            "unit": "kg",
+                            "unit_display": "kg CO₂e/kg (carbon savings)",
+                            "source": "EPA WARM Model",
+                            "description": "Significant carbon savings vs new plastic"
+                        },
+                        "recycling_aluminum": {
+                            "name": "Aluminum Recycling",
+                            "factor": float(calculator.waste_factors["recycling_aluminum"]),
+                            "unit": "kg",
+                            "unit_display": "kg CO₂e/kg (carbon savings)",
+                            "source": "EPA WARM Model",
+                            "description": "Huge carbon savings - aluminum recycling is highly efficient"
+                        },
+                        "recycling_glass": {
+                            "name": "Glass Recycling",
+                            "factor": float(calculator.waste_factors["recycling_glass"]),
+                            "unit": "kg",
+                            "unit_display": "kg CO₂e/kg (carbon savings)",
+                            "source": "EPA WARM Model"
+                        },
+                        "recycling_steel": {
+                            "name": "Steel Recycling",
+                            "factor": float(calculator.waste_factors["recycling_steel"]),
+                            "unit": "kg",
+                            "unit_display": "kg CO₂e/kg (carbon savings)",
+                            "source": "EPA WARM Model"
+                        },
+                        
+                        # Composting
+                        "composting_food": {
+                            "name": "Food Composting",
+                            "factor": float(calculator.waste_factors["composting_food"]),
+                            "unit": "kg",
+                            "unit_display": "kg CO₂e/kg (carbon savings)",
+                            "source": "EPA WARM Model",
+                            "description": "Carbon savings vs landfill"
+                        },
+                        "composting_yard": {
+                            "name": "Yard Waste Composting",
+                            "factor": float(calculator.waste_factors["composting_yard"]),
+                            "unit": "kg",
+                            "unit_display": "kg CO₂e/kg (carbon savings)",
+                            "source": "EPA WARM Model"
+                        }
+                    }
+                }
             }
         }
-    }
+    except Exception as e:
+        print(f"Error generating activities list: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error loading emission factors")
 
 @app.get("/api/v1/carbon-emissions/")
 async def get_carbon_emissions(current_user: Dict[str, Any] = Depends(get_current_user)):
