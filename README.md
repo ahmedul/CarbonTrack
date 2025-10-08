@@ -109,13 +109,15 @@ For detailed information about our calculation methods, emission factors, and sc
 ## 🚀 Features (MVP Scope)
 
 - 🔐 **User Authentication** with JWT-based secure login system  
-- 📝 **Carbon Activity Tracking** across transportation, energy, food & waste  
+- � **Admin Panel** with user management, approval workflow, and dashboard analytics
+- �📝 **Carbon Activity Tracking** across transportation, energy, food & waste  
 - 📊 **Scientific CO₂ Calculation Engine** with EPA/IPCC emission factors  
 - 📈 **Interactive Dashboard** with real-time charts and trend analysis  
 - 🧠 **Intelligent Recommendations** - AI-powered personalized carbon reduction suggestions  
 - 🎯 **Goal Setting & Achievement** system for carbon reduction targets  
 - 💾 **Serverless Cloud Architecture** using AWS Lambda + DynamoDB  
 - ⚡ **Modern CI/CD Pipeline** with automated testing & deployment
+- 🔄 **Real-time Data Sync** - All data fetched from DynamoDB, no mock data
 
 ### 💡 NEW: Intelligent Recommendation System
 Our AI-powered recommendation engine analyzes your carbon footprint patterns and provides personalized, scientifically-backed suggestions to reduce your environmental impact:
@@ -127,7 +129,23 @@ Our AI-powered recommendation engine analyzes your carbon footprint patterns and
 - **Action-Oriented**: Step-by-step implementation guides
 - **Smart Scoring**: Relevance-based ranking (0-100 scale)
 
-**Example**: If you drive 30km daily in a gasoline car, the system recommends switching to hybrid (43% emission reduction, 1,245 kg CO₂ saved annually) with specific implementation steps.  
+**Example**: If you drive 30km daily in a gasoline car, the system recommends switching to hybrid (43% emission reduction, 1,245 kg CO₂ saved annually) with specific implementation steps.
+
+### 👥 NEW: Admin Panel & User Management
+Complete administrative interface for managing users and monitoring platform activity:
+
+- **User Approval Workflow**: New registrations require admin approval before activation
+- **Real-time Dashboard**: View pending registrations, total users, active users, and carbon tracked
+- **One-Click Actions**: Approve or reject user registrations with database synchronization
+- **Role-Based Access**: Admin-only endpoints with JWT token verification
+- **Statistics Overview**: Monitor platform growth and user engagement metrics
+- **100% Database-Driven**: No mock data, all information fetched from DynamoDB in real-time
+
+**Admin Features**:
+- View all users with status, role, and activity information
+- Manage pending registrations with approve/reject actions
+- Real-time statistics dashboard
+- Secure admin authentication with automatic role assignment
 
 ---
 
@@ -165,6 +183,22 @@ Our AI-powered recommendation engine analyzes your carbon footprint patterns and
   - ✅ API reference with examples
   - ✅ Scientific sources and validation
 - [✅] **Enhanced dashboard with charts** (CO₂ trend visualization)
+
+### ✅ Phase 3.5 (Admin Panel & User Management)
+- [✅] **Admin Panel with Real Database Integration**
+  - ✅ User registration approval workflow (pending/active status)
+  - ✅ Admin-only endpoints with role-based access control
+  - ✅ Real-time user management (approve/reject registrations)
+  - ✅ Admin dashboard with statistics (total users, pending registrations, carbon tracked)
+  - ✅ Removed all mock/dummy data, 100% database-driven
+- [✅] **Authentication Improvements**
+  - ✅ Fixed JWT token validation and security
+  - ✅ Auto-admin assignment for designated accounts
+  - ✅ Proper token-based authentication throughout
+- [✅] **Data Visualization Enhancements**
+  - ✅ Real emissions data in trend charts
+  - ✅ Dynamic chart generation from user activities
+  - ✅ Sample data generation for new users
 
 ### 🔮 Phase 4 (Production & CI/CD)
 - [✅] Set up CI/CD pipeline with CodePipeline  
