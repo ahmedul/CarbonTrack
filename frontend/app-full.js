@@ -714,6 +714,37 @@ const app = createApp({
         },
         
         // Chart methods
+        prepareChartData() {
+            // Group emissions by date and sum CO2
+            const emissionsByDate = {};
+            
+            this.emissions.forEach(emission => {
+                const date = emission.date;
+                if (!emissionsByDate[date]) {
+                    emissionsByDate[date] = 0;
+                }
+                emissionsByDate[date] += emission.co2_equivalent || emission.amount || 0;
+            });
+            
+            // Sort dates and prepare labels and data
+            const dates = Object.keys(emissionsByDate).sort();
+            const labels = dates.map(date => {
+                const d = new Date(date);
+                return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            });
+            const data = dates.map(date => Math.round(emissionsByDate[date] * 10) / 10);
+            
+            // If no data, return some default data
+            if (labels.length === 0) {
+                return {
+                    labels: ['Sep 18', 'Sep 19', 'Sep 20', 'Sep 21', 'Sep 22', 'Sep 23', 'Sep 24', 'Sep 25'],
+                    data: [23.5, 15.2, 45.6, 8.7, 12.1, 45.2, 25.4, 150.5]
+                };
+            }
+            
+            return { labels, data };
+        },
+        
         initializeChart() {
             if (typeof Chart === 'undefined') {
                 console.warn('Chart.js not loaded, skipping chart initialization');
@@ -723,13 +754,16 @@ const app = createApp({
             setTimeout(() => {
                 const ctx = document.getElementById('emissionsChart');
                 if (ctx && !this.chart) {
+                    // Prepare chart data from emissions
+                    const chartData = this.prepareChartData();
+                    
                     this.chart = new Chart(ctx, {
                         type: 'line',
                         data: {
-                            labels: ['Sep 18', 'Sep 19', 'Sep 20', 'Sep 21', 'Sep 22', 'Sep 23', 'Sep 24', 'Sep 25'],
+                            labels: chartData.labels,
                             datasets: [{
                                 label: 'Daily CO₂ Emissions (kg)',
-                                data: [23.5, 15.2, 45.6, 8.7, 12.1, 45.2, 25.4, 150.5],
+                                data: chartData.data,
                                 borderColor: 'rgb(59, 130, 246)',
                                 backgroundColor: 'rgba(59, 130, 246, 0.1)',
                                 borderWidth: 3,
