@@ -156,63 +156,13 @@ const app = createApp({
             // Admin Panel Data
             adminTab: 'pending',
             adminStats: {
-                totalUsers: 156,
-                pendingRegistrations: 8,
-                activeThisMonth: 42,
-                totalCarbonTracked: 2847
+                totalUsers: 0,
+                pendingRegistrations: 0,
+                activeThisMonth: 0,
+                totalCarbonTracked: 0
             },
-            pendingUsers: [
-                {
-                    id: 'pending_1',
-                    firstName: 'Sarah',
-                    lastName: 'Johnson',
-                    email: 'sarah.johnson@example.com',
-                    organization: 'Green Tech Inc.',
-                    registeredAt: '2025-09-29T10:30:00Z'
-                },
-                {
-                    id: 'pending_2',
-                    firstName: 'Michael',
-                    lastName: 'Chen',
-                    email: 'michael.chen@university.edu',
-                    organization: 'University Research Lab',
-                    registeredAt: '2025-09-29T15:45:00Z'
-                },
-                {
-                    id: 'pending_3',
-                    firstName: 'Emma',
-                    lastName: 'Davis',
-                    email: 'emma.davis@startup.co',
-                    organization: 'EcoSolutions Startup',
-                    registeredAt: '2025-09-30T09:15:00Z'
-                }
-            ],
-            allUsers: [
-                {
-                    id: 'user_1',
-                    name: 'Demo User',
-                    email: 'demo@carbontrack.dev',
-                    status: 'active',
-                    role: 'admin',
-                    lastActive: '2025-09-30T12:00:00Z'
-                },
-                {
-                    id: 'user_2',
-                    name: 'Alex Thompson',
-                    email: 'alex@greencompany.com',
-                    status: 'active',
-                    role: 'user',
-                    lastActive: '2025-09-29T18:30:00Z'
-                },
-                {
-                    id: 'user_3',
-                    name: 'Lisa Rodriguez',
-                    email: 'lisa@ecofirm.org',
-                    status: 'inactive',
-                    role: 'user',
-                    lastActive: '2025-09-15T14:20:00Z'
-                }
-            ],
+            pendingUsers: [],  // Will be loaded from API
+            allUsers: [],  // Will be loaded from API
             userFilter: 'all',
             userSearch: '',
             systemSettings: {
@@ -282,6 +232,11 @@ const app = createApp({
             this.loadEmissions();
             this.loadRecommendations();
             this.loadRecommendationStats();
+            
+            // Load admin data if user is admin
+            if (this.userProfile.role === 'admin') {
+                this.loadAdminData();
+            }
         }
         this.initializeChart();
     },
@@ -351,6 +306,11 @@ const app = createApp({
                     this.loadRecommendationStats();
                     this.loadGamificationData();
                     
+                    // Load admin data if user is admin
+                    if (this.userProfile.role === 'admin') {
+                        this.loadAdminData();
+                    }
+                    
                     this.showNotification('Login successful! Welcome to CarbonTrack.', 'success');
                     this.initializeChart();
                     return;
@@ -400,6 +360,7 @@ const app = createApp({
                 this.loadRecommendations();
                 this.loadRecommendationStats();
                 this.loadGamificationData();
+                this.loadAdminData();  // Load admin panel data
                 
                 this.showNotification('Welcome back, Admin! You have full access to all features.', 'success');
                 this.initializeChart();
@@ -1535,14 +1496,14 @@ const app = createApp({
                 if (response.data && response.data.access_token) {
                     console.log('✅ Registration successful via API');
                     this.showNotification(
-                        '🎉 Registration Successful! Your account has been created. Redirecting to login...',
+                        '🎉 Registration Successful! Your account request has been submitted for admin approval. You will be notified once approved.',
                         'success'
                     );
-                    // Switch to login view after 2 seconds
+                    // Switch to login view after 3 seconds
                     setTimeout(() => {
                         this.currentView = 'login';
                         this.loginForm.email = this.registerForm.email;
-                    }, 2000);
+                    }, 3000);
                 } else {
                     console.log('❌ API registration failed, using local simulation');
                     this.handleLocalRegistration();
@@ -1594,42 +1555,114 @@ const app = createApp({
         },
         
         // Admin Methods
+        // Admin data loading methods
+        async loadAdminData() {
+            if (this.userProfile.role !== 'admin') return;
+            
+            await Promise.all([
+                this.loadPendingUsers(),
+                this.loadAllUsers(),
+                this.loadAdminStats()
+            ]);
+        },
+        
+        async loadPendingUsers() {
+            try {
+                const response = await axios.get(`${this.apiBase}/api/admin/pending-users`, {
+                    headers: {
+                        'Authorization': `Bearer ${this.authToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (response.data.success) {
+                    this.pendingUsers = response.data.pending_users.map(user => ({
+                        id: user.user_id,
+                        user_id: user.user_id,
+                        firstName: user.full_name.split(' ')[0] || '',
+                        lastName: user.full_name.split(' ').slice(1).join(' ') || '',
+                        full_name: user.full_name,
+                        email: user.email,
+                        registeredAt: user.created_at,
+                        role: user.role
+                    }));
+                    console.log('✅ Loaded pending users:', this.pendingUsers.length);
+                }
+            } catch (error) {
+                console.error('Error loading pending users:', error);
+                this.showNotification('Failed to load pending users', 'error');
+            }
+        },
+        
+        async loadAllUsers() {
+            try {
+                const response = await axios.get(`${this.apiBase}/api/admin/users`, {
+                    headers: {
+                        'Authorization': `Bearer ${this.authToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (response.data.success) {
+                    this.allUsers = response.data.users.map(user => ({
+                        id: user.user_id,
+                        user_id: user.user_id,
+                        name: user.full_name,
+                        email: user.email,
+                        status: user.status,
+                        role: user.role,
+                        lastActive: user.last_active,
+                        totalEmissions: user.total_emissions,
+                        entriesCount: user.entries_count
+                    }));
+                    console.log('✅ Loaded all users:', this.allUsers.length);
+                }
+            } catch (error) {
+                console.error('Error loading all users:', error);
+                this.showNotification('Failed to load users', 'error');
+            }
+        },
+        
+        async loadAdminStats() {
+            try {
+                const response = await axios.get(`${this.apiBase}/api/admin/stats`, {
+                    headers: {
+                        'Authorization': `Bearer ${this.authToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (response.data.success) {
+                    this.adminStats = {
+                        totalUsers: response.data.stats.total_users,
+                        pendingRegistrations: response.data.stats.pending_registrations,
+                        activeThisMonth: response.data.stats.active_this_month,
+                        totalCarbonTracked: response.data.stats.total_carbon_tracked
+                    };
+                    console.log('✅ Loaded admin stats:', this.adminStats);
+                }
+            } catch (error) {
+                console.error('Error loading admin stats:', error);
+            }
+        },
+        
         async approveUser(userId) {
             try {
-                // Simulate API call
-                await new Promise(resolve => setTimeout(resolve, 500));
+                const response = await axios.post(
+                    `${this.apiBase}/api/admin/users/${userId}/approve`, 
+                    {},
+                    {
+                        headers: {
+                            'Authorization': `Bearer ${this.authToken}`,
+                            'Content-Type': 'application/json'
+                        }
+                    }
+                );
                 
-                // Find and remove from pending
-                const userIndex = this.pendingUsers.findIndex(user => user.id === userId);
-                if (userIndex !== -1) {
-                    const user = this.pendingUsers[userIndex];
-                    
-                    // Add to approved users with login credentials
-                    const approvedUser = {
-                        id: `approved_${Date.now()}`,
-                        name: `${user.firstName} ${user.lastName}`,
-                        email: user.email,
-                        status: 'active',
-                        role: 'user',
-                        lastActive: new Date().toISOString(),
-                        // Store original registration info for reference
-                        firstName: user.firstName,
-                        lastName: user.lastName,
-                        registeredAt: user.registeredAt
-                    };
-                    
-                    this.allUsers.push(approvedUser);
-                    
-                    console.log('✅ User approved:', user.email, '- can now login with password: password123');
-                    
-                    // Remove from pending
-                    this.pendingUsers.splice(userIndex, 1);
-                    
-                    // Update stats
-                    this.adminStats.pendingRegistrations--;
-                    this.adminStats.totalUsers++;
-                    
-                    this.showNotification('User approved successfully!', 'success');
+                if (response.data.success) {
+                    this.showNotification('✅ User approved successfully!', 'success');
+                    // Reload data
+                    await this.loadAdminData();
                 }
             } catch (error) {
                 console.error('Error approving user:', error);
@@ -1639,15 +1672,20 @@ const app = createApp({
         
         async rejectUser(userId) {
             try {
-                // Simulate API call
-                await new Promise(resolve => setTimeout(resolve, 500));
+                const response = await axios.delete(
+                    `${this.apiBase}/api/admin/users/${userId}`,
+                    {
+                        headers: {
+                            'Authorization': `Bearer ${this.authToken}`,
+                            'Content-Type': 'application/json'
+                        }
+                    }
+                );
                 
-                // Remove from pending
-                const userIndex = this.pendingUsers.findIndex(user => user.id === userId);
-                if (userIndex !== -1) {
-                    this.pendingUsers.splice(userIndex, 1);
-                    this.adminStats.pendingRegistrations--;
-                    this.showNotification('User registration rejected', 'success');
+                if (response.data.success) {
+                    this.showNotification('✅ User rejected and removed', 'success');
+                    // Reload data
+                    await this.loadAdminData();
                 }
             } catch (error) {
                 console.error('Error rejecting user:', error);

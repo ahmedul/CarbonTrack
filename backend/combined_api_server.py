@@ -142,7 +142,7 @@ def create_user(registration_data: UserRegistration) -> Dict[str, Any]:
             'password_hash': {'S': hash_password(registration_data.password)},
             'full_name': {'S': registration_data.full_name},
             'role': {'S': 'user'},
-            'status': {'S': 'active'},
+            'status': {'S': 'pending'},  # Default to pending, admin must approve
             'email_verified': {'BOOL': False},
             'carbon_budget': {'N': str(registration_data.carbon_budget)},
             'total_emissions': {'N': '0'},
@@ -169,7 +169,7 @@ def create_user(registration_data: UserRegistration) -> Dict[str, Any]:
             'email': registration_data.email,
             'full_name': registration_data.full_name,
             'role': 'user',
-            'status': 'active',
+            'status': 'pending',  # User needs admin approval
             'carbon_budget': registration_data.carbon_budget,
             'total_emissions': 0,
             'current_month_emissions': 0,
@@ -328,6 +328,154 @@ async def get_user_profile(current_user: Dict[str, Any] = Depends(get_current_us
     user_profile = current_user.copy()
     user_profile.pop("password_hash", None)
     return user_profile
+
+# Admin endpoints
+@app.get("/api/admin/users")
+async def get_all_users(current_user: Dict[str, Any] = Depends(get_current_user)):
+    """Get all users (admin only)"""
+    if current_user.get('role') != 'admin':
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    
+    try:
+        dynamodb = get_dynamodb_client()
+        response = dynamodb.scan(TableName=USERS_TABLE)
+        
+        users = []
+        for item in response.get('Items', []):
+            user_id = item.get('userId', item.get('user_id', {})).get('S', '')
+            users.append({
+                'user_id': user_id,
+                'email': item.get('email', {}).get('S', ''),
+                'full_name': item.get('full_name', {}).get('S', ''),
+                'role': item.get('role', {}).get('S', 'user'),
+                'status': item.get('status', {}).get('S', 'pending'),
+                'created_at': item.get('created_at', {}).get('S', ''),
+                'last_active': item.get('last_active', {}).get('S', ''),
+                'total_emissions': float(item.get('total_emissions', {}).get('N', '0')),
+                'entries_count': int(item.get('entries_count', {}).get('N', '0'))
+            })
+        
+        return {"success": True, "users": users, "count": len(users)}
+    except Exception as e:
+        print(f"Error fetching users: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error fetching users")
+
+@app.get("/api/admin/pending-users")
+async def get_pending_users(current_user: Dict[str, Any] = Depends(get_current_user)):
+    """Get users with pending status (admin only)"""
+    if current_user.get('role') != 'admin':
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    
+    try:
+        dynamodb = get_dynamodb_client()
+        response = dynamodb.scan(
+            TableName=USERS_TABLE,
+            FilterExpression='#status = :pending',
+            ExpressionAttributeNames={'#status': 'status'},
+            ExpressionAttributeValues={':pending': {'S': 'pending'}}
+        )
+        
+        pending_users = []
+        for item in response.get('Items', []):
+            user_id = item.get('userId', item.get('user_id', {})).get('S', '')
+            pending_users.append({
+                'user_id': user_id,
+                'email': item.get('email', {}).get('S', ''),
+                'full_name': item.get('full_name', {}).get('S', ''),
+                'created_at': item.get('created_at', {}).get('S', ''),
+                'role': item.get('role', {}).get('S', 'user')
+            })
+        
+        return {"success": True, "pending_users": pending_users, "count": len(pending_users)}
+    except Exception as e:
+        print(f"Error fetching pending users: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error fetching pending users")
+
+@app.post("/api/admin/users/{user_id}/approve")
+async def approve_user(user_id: str, current_user: Dict[str, Any] = Depends(get_current_user)):
+    """Approve a pending user (admin only)"""
+    if current_user.get('role') != 'admin':
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    
+    try:
+        dynamodb = get_dynamodb_client()
+        now = datetime.utcnow().isoformat()
+        
+        dynamodb.update_item(
+            TableName=USERS_TABLE,
+            Key={'userId': {'S': user_id}},
+            UpdateExpression='SET #status = :active, updated_at = :now',
+            ExpressionAttributeNames={'#status': 'status'},
+            ExpressionAttributeValues={
+                ':active': {'S': 'active'},
+                ':now': {'S': now}
+            }
+        )
+        
+        return {"success": True, "message": "User approved successfully", "user_id": user_id}
+    except Exception as e:
+        print(f"Error approving user: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error approving user")
+
+@app.delete("/api/admin/users/{user_id}")
+async def reject_user(user_id: str, current_user: Dict[str, Any] = Depends(get_current_user)):
+    """Reject/delete a pending user (admin only)"""
+    if current_user.get('role') != 'admin':
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    
+    try:
+        dynamodb = get_dynamodb_client()
+        dynamodb.delete_item(
+            TableName=USERS_TABLE,
+            Key={'userId': {'S': user_id}}
+        )
+        
+        return {"success": True, "message": "User rejected successfully", "user_id": user_id}
+    except Exception as e:
+        print(f"Error rejecting user: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error rejecting user")
+
+@app.get("/api/admin/stats")
+async def get_admin_stats(current_user: Dict[str, Any] = Depends(get_current_user)):
+    """Get admin dashboard statistics"""
+    if current_user.get('role') != 'admin':
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    
+    try:
+        dynamodb = get_dynamodb_client()
+        
+        # Get all users
+        users_response = dynamodb.scan(TableName=USERS_TABLE)
+        all_users = users_response.get('Items', [])
+        
+        # Calculate stats
+        total_users = len(all_users)
+        pending_count = sum(1 for u in all_users if u.get('status', {}).get('S') == 'pending')
+        active_count = sum(1 for u in all_users if u.get('status', {}).get('S') == 'active')
+        
+        # Get users active this month
+        current_month = datetime.utcnow().strftime('%Y-%m')
+        active_this_month = sum(1 for u in all_users 
+                                if u.get('last_active', {}).get('S', '').startswith(current_month))
+        
+        # Get total carbon tracked
+        entries_response = dynamodb.scan(TableName=EMISSIONS_TABLE)
+        total_carbon = sum(float(item.get('co2_equivalent', item.get('amount', {})).get('N', '0')) 
+                          for item in entries_response.get('Items', []))
+        
+        return {
+            "success": True,
+            "stats": {
+                "total_users": total_users,
+                "pending_registrations": pending_count,
+                "active_users": active_count,
+                "active_this_month": active_this_month,
+                "total_carbon_tracked": round(total_carbon, 2)
+            }
+        }
+    except Exception as e:
+        print(f"Error fetching admin stats: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error fetching statistics")
 
 # Carbon tracking endpoints
 @app.get("/api/v1/carbon-emissions/activities")
