@@ -2111,6 +2111,416 @@ async def list_user_teams(
             detail=f"Error listing user teams: {str(e)}"
         )
 
+# ================================
+# Team Goals Endpoints
+# ================================
+
+# Pydantic models for goals
+class GoalCreate(BaseModel):
+    goal_type: str  # reduction, absolute, per_capita
+    target_value: float
+    baseline_value: float
+    period: str  # monthly, quarterly, yearly
+    start_date: str  # ISO format
+    end_date: str  # ISO format
+
+class GoalUpdate(BaseModel):
+    target_value: Optional[float] = None
+    end_date: Optional[str] = None
+    status: Optional[str] = None  # active, achieved, failed, cancelled
+
+class GoalProgressUpdate(BaseModel):
+    current_value: float
+
+@app.post("/api/v1/teams/{team_id}/goals", status_code=status.HTTP_201_CREATED)
+async def create_team_goal(
+    team_id: str,
+    goal_data: GoalCreate,
+    current_user: Dict = Depends(get_current_user)
+):
+    """Create a new goal for a team"""
+    try:
+        # Get team to verify it exists and get organization_id
+        team = org_service.get_team(team_id)
+        if not team:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Team not found"
+            )
+        
+        goal = org_service.create_goal(
+            team_id=team_id,
+            organization_id=team['organization_id'],
+            goal_type=goal_data.goal_type,
+            target_value=goal_data.target_value,
+            baseline_value=goal_data.baseline_value,
+            period=goal_data.period,
+            start_date=goal_data.start_date,
+            end_date=goal_data.end_date,
+            created_by=current_user['user_id']
+        )
+        
+        return {
+            "success": True,
+            "message": "Goal created successfully",
+            "data": goal
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error creating goal: {str(e)}"
+        )
+
+@app.get("/api/v1/teams/{team_id}/goals")
+async def list_team_goals(
+    team_id: str,
+    status_filter: Optional[str] = None,
+    current_user: Dict = Depends(get_current_user)
+):
+    """List all goals for a team"""
+    try:
+        goals = org_service.list_team_goals(team_id, status=status_filter)
+        return {
+            "success": True,
+            "data": goals,
+            "total": len(goals)
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error listing goals: {str(e)}"
+        )
+
+@app.get("/api/v1/goals/{goal_id}")
+async def get_goal(
+    goal_id: str,
+    current_user: Dict = Depends(get_current_user)
+):
+    """Get goal details"""
+    try:
+        goal = org_service.get_goal(goal_id)
+        if not goal:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Goal not found"
+            )
+        
+        return {
+            "success": True,
+            "data": goal
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching goal: {str(e)}"
+        )
+
+@app.put("/api/v1/goals/{goal_id}")
+async def update_goal(
+    goal_id: str,
+    goal_data: GoalUpdate,
+    current_user: Dict = Depends(get_current_user)
+):
+    """Update goal details"""
+    try:
+        updates = {k: v for k, v in goal_data.dict().items() if v is not None}
+        updated_goal = org_service.update_goal(goal_id, updates)
+        
+        return {
+            "success": True,
+            "message": "Goal updated successfully",
+            "data": updated_goal
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error updating goal: {str(e)}"
+        )
+
+@app.put("/api/v1/goals/{goal_id}/progress")
+async def update_goal_progress(
+    goal_id: str,
+    progress_data: GoalProgressUpdate,
+    current_user: Dict = Depends(get_current_user)
+):
+    """Update goal progress with current emissions value"""
+    try:
+        updated_goal = org_service.update_goal_progress(
+            goal_id=goal_id,
+            current_value=progress_data.current_value,
+            auto_update_status=True
+        )
+        
+        return {
+            "success": True,
+            "message": "Goal progress updated successfully",
+            "data": updated_goal
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error updating goal progress: {str(e)}"
+        )
+
+@app.delete("/api/v1/goals/{goal_id}")
+async def delete_goal(
+    goal_id: str,
+    current_user: Dict = Depends(get_current_user)
+):
+    """Cancel a goal"""
+    try:
+        org_service.delete_goal(goal_id)
+        return {
+            "success": True,
+            "message": "Goal cancelled successfully"
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error deleting goal: {str(e)}"
+        )
+
+@app.get("/api/v1/organizations/{organization_id}/goals")
+async def list_organization_goals(
+    organization_id: str,
+    current_user: Dict = Depends(get_current_user)
+):
+    """List all goals in an organization"""
+    try:
+        goals = org_service.list_organization_goals(organization_id)
+        return {
+            "success": True,
+            "data": goals,
+            "total": len(goals)
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error listing organization goals: {str(e)}"
+        )
+
+# ================================
+# Challenges Endpoints
+# ================================
+
+# Pydantic models for challenges
+class ChallengeCreate(BaseModel):
+    name: str
+    description: str
+    challenge_type: str  # reduction_race, absolute_lowest, improvement
+    rules: Dict[str, Any]
+    start_date: str  # ISO format
+    end_date: str  # ISO format
+    organization_id: Optional[str] = None  # None for public challenges
+    prizes: Optional[List[Dict[str, Any]]] = None
+
+class ChallengeUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    status: Optional[str] = None  # upcoming, active, completed, cancelled
+    prizes: Optional[List[Dict[str, Any]]] = None
+
+class ChallengeJoin(BaseModel):
+    participant_type: str  # team or individual
+    team_id: Optional[str] = None
+    baseline_emissions: float = 0.0
+
+@app.post("/api/v1/challenges", status_code=status.HTTP_201_CREATED)
+async def create_challenge(
+    challenge_data: ChallengeCreate,
+    current_user: Dict = Depends(get_current_user)
+):
+    """Create a new challenge"""
+    try:
+        challenge = org_service.create_challenge(
+            organization_id=challenge_data.organization_id,
+            name=challenge_data.name,
+            description=challenge_data.description,
+            challenge_type=challenge_data.challenge_type,
+            rules=challenge_data.rules,
+            start_date=challenge_data.start_date,
+            end_date=challenge_data.end_date,
+            created_by=current_user['user_id'],
+            prizes=challenge_data.prizes
+        )
+        
+        return {
+            "success": True,
+            "message": "Challenge created successfully",
+            "data": challenge
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error creating challenge: {str(e)}"
+        )
+
+@app.get("/api/v1/challenges")
+async def list_challenges(
+    organization_id: Optional[str] = None,
+    status_filter: Optional[str] = None,
+    current_user: Dict = Depends(get_current_user)
+):
+    """List challenges"""
+    try:
+        challenges = org_service.list_challenges(
+            organization_id=organization_id,
+            status=status_filter
+        )
+        return {
+            "success": True,
+            "data": challenges,
+            "total": len(challenges)
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error listing challenges: {str(e)}"
+        )
+
+@app.get("/api/v1/challenges/{challenge_id}")
+async def get_challenge(
+    challenge_id: str,
+    current_user: Dict = Depends(get_current_user)
+):
+    """Get challenge details"""
+    try:
+        challenge = org_service.get_challenge(challenge_id)
+        if not challenge:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Challenge not found"
+            )
+        
+        return {
+            "success": True,
+            "data": challenge
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching challenge: {str(e)}"
+        )
+
+@app.put("/api/v1/challenges/{challenge_id}")
+async def update_challenge(
+    challenge_id: str,
+    challenge_data: ChallengeUpdate,
+    current_user: Dict = Depends(get_current_user)
+):
+    """Update challenge details"""
+    try:
+        updates = {k: v for k, v in challenge_data.dict().items() if v is not None}
+        updated_challenge = org_service.update_challenge(challenge_id, updates)
+        
+        return {
+            "success": True,
+            "message": "Challenge updated successfully",
+            "data": updated_challenge
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error updating challenge: {str(e)}"
+        )
+
+@app.post("/api/v1/challenges/{challenge_id}/join")
+async def join_challenge(
+    challenge_id: str,
+    join_data: ChallengeJoin,
+    current_user: Dict = Depends(get_current_user)
+):
+    """Join a challenge"""
+    try:
+        # Determine participant ID
+        if join_data.participant_type == 'team':
+            if not join_data.team_id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="team_id required for team participation"
+                )
+            participant_id = join_data.team_id
+            team = org_service.get_team(join_data.team_id)
+            if not team:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Team not found"
+                )
+            organization_id = team['organization_id']
+        else:
+            participant_id = current_user['user_id']
+            organization_id = current_user.get('organization_id', 'individual')
+        
+        participation = org_service.join_challenge(
+            challenge_id=challenge_id,
+            participant_id=participant_id,
+            participant_type=join_data.participant_type,
+            team_id=join_data.team_id or '',
+            organization_id=organization_id,
+            baseline_emissions=join_data.baseline_emissions
+        )
+        
+        return {
+            "success": True,
+            "message": "Joined challenge successfully",
+            "data": participation
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error joining challenge: {str(e)}"
+        )
+
+@app.delete("/api/v1/challenges/{challenge_id}/leave")
+async def leave_challenge(
+    challenge_id: str,
+    participant_id: Optional[str] = None,
+    current_user: Dict = Depends(get_current_user)
+):
+    """Leave a challenge"""
+    try:
+        # Use current user if no participant_id provided
+        pid = participant_id or current_user['user_id']
+        
+        org_service.leave_challenge(challenge_id, pid)
+        
+        return {
+            "success": True,
+            "message": "Left challenge successfully"
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error leaving challenge: {str(e)}"
+        )
+
+@app.get("/api/v1/challenges/{challenge_id}/leaderboard")
+async def get_challenge_leaderboard(
+    challenge_id: str,
+    current_user: Dict = Depends(get_current_user)
+):
+    """Get challenge leaderboard"""
+    try:
+        leaderboard = org_service.get_challenge_leaderboard(challenge_id)
+        return {
+            "success": True,
+            "data": leaderboard,
+            "total_participants": len(leaderboard)
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching leaderboard: {str(e)}"
+        )
+
 # Lambda handler for AWS deployment
 try:
     from mangum import Mangum

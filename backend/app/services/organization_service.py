@@ -568,3 +568,504 @@ class OrganizationService:
             'admin': ['view_reports', 'add_emissions', 'add_members', 'set_goals', 'edit_team', 'delete_team']
         }
         return permissions_map.get(role, permissions_map['member'])
+    
+    # ==================== Team Goals ====================
+    
+    def create_goal(
+        self,
+        team_id: str,
+        organization_id: str,
+        goal_type: str,
+        target_value: float,
+        baseline_value: float,
+        period: str,
+        start_date: str,
+        end_date: str,
+        created_by: str
+    ) -> Dict[str, Any]:
+        """
+        Create a new team goal
+        
+        Args:
+            team_id: Team ID
+            organization_id: Organization ID
+            goal_type: Type of goal (reduction, absolute, per_capita)
+            target_value: Target emissions value
+            baseline_value: Starting emissions value
+            period: Goal period (monthly, quarterly, yearly)
+            start_date: Goal start date (ISO format)
+            end_date: Goal end date (ISO format)
+            created_by: User ID who created the goal
+        
+        Returns:
+            Created goal data
+        """
+        goal_id = self._generate_id("goal")
+        timestamp = self._iso_timestamp()
+        
+        goal = {
+            'goal_id': goal_id,
+            'team_id': team_id,
+            'organization_id': organization_id,
+            'goal_type': goal_type,
+            'target_value': target_value,
+            'baseline_value': baseline_value,
+            'period': period,
+            'start_date': start_date,
+            'end_date': end_date,
+            'status': 'active',
+            'progress': {
+                'current_value': baseline_value,
+                'percentage': 0.0,
+                'last_updated': timestamp,
+                'on_track': True
+            },
+            'created_by': created_by,
+            'created_at': timestamp,
+            'updated_at': timestamp
+        }
+        
+        try:
+            self.goals_table.put_item(Item=goal)
+            return goal
+        except ClientError as e:
+            raise Exception(f"Failed to create goal: {e.response['Error']['Message']}")
+    
+    def get_goal(self, goal_id: str) -> Optional[Dict[str, Any]]:
+        """Get goal by ID"""
+        try:
+            response = self.goals_table.get_item(Key={'goal_id': goal_id})
+            return response.get('Item')
+        except ClientError as e:
+            raise Exception(f"Failed to get goal: {e.response['Error']['Message']}")
+    
+    def list_team_goals(self, team_id: str, status: str = None) -> List[Dict[str, Any]]:
+        """
+        List all goals for a team
+        
+        Args:
+            team_id: Team ID
+            status: Optional status filter (active, achieved, failed, cancelled)
+        
+        Returns:
+            List of goals
+        """
+        try:
+            if status:
+                response = self.goals_table.query(
+                    IndexName='TeamGoalsIndex',
+                    KeyConditionExpression='team_id = :team_id',
+                    FilterExpression='#status = :status',
+                    ExpressionAttributeNames={'#status': 'status'},
+                    ExpressionAttributeValues={
+                        ':team_id': team_id,
+                        ':status': status
+                    }
+                )
+            else:
+                response = self.goals_table.query(
+                    IndexName='TeamGoalsIndex',
+                    KeyConditionExpression='team_id = :team_id',
+                    ExpressionAttributeValues={':team_id': team_id}
+                )
+            return response.get('Items', [])
+        except ClientError as e:
+            raise Exception(f"Failed to list team goals: {e.response['Error']['Message']}")
+    
+    def list_organization_goals(self, organization_id: str) -> List[Dict[str, Any]]:
+        """List all goals in an organization"""
+        try:
+            response = self.goals_table.query(
+                IndexName='OrganizationGoalsIndex',
+                KeyConditionExpression='organization_id = :org_id',
+                ExpressionAttributeValues={':org_id': organization_id}
+            )
+            return response.get('Items', [])
+        except ClientError as e:
+            raise Exception(f"Failed to list organization goals: {e.response['Error']['Message']}")
+    
+    def update_goal_progress(
+        self,
+        goal_id: str,
+        current_value: float,
+        auto_update_status: bool = True
+    ) -> Dict[str, Any]:
+        """
+        Update goal progress
+        
+        Args:
+            goal_id: Goal ID
+            current_value: Current emissions value
+            auto_update_status: Automatically update status based on progress
+        
+        Returns:
+            Updated goal data
+        """
+        try:
+            goal = self.get_goal(goal_id)
+            if not goal:
+                raise Exception("Goal not found")
+            
+            # Calculate progress percentage
+            baseline = float(goal['baseline_value'])
+            target = float(goal['target_value'])
+            current = float(current_value)
+            
+            if goal['goal_type'] == 'reduction':
+                # For reduction goals: progress = (baseline - current) / (baseline - target)
+                if baseline != target:
+                    progress_pct = ((baseline - current) / (baseline - target)) * 100
+                else:
+                    progress_pct = 100.0 if current <= target else 0.0
+            elif goal['goal_type'] == 'absolute':
+                # For absolute goals: progress = (target - current) / target
+                if target > 0:
+                    progress_pct = max(0, (target - current) / target) * 100
+                else:
+                    progress_pct = 0.0
+            else:  # per_capita
+                # For per capita goals: similar to absolute
+                if target > 0:
+                    progress_pct = ((baseline - current) / baseline) * 100
+                else:
+                    progress_pct = 0.0
+            
+            # Determine if on track
+            on_track = progress_pct >= 0 and current <= target
+            
+            # Update status if requested
+            new_status = goal.get('status', 'active')
+            if auto_update_status and goal.get('status') == 'active':
+                if progress_pct >= 100 and current <= target:
+                    new_status = 'achieved'
+                elif current > baseline:
+                    new_status = 'failed'
+            
+            # Update goal
+            response = self.goals_table.update_item(
+                Key={'goal_id': goal_id},
+                UpdateExpression="""
+                    SET progress = :progress, 
+                        #status = :status, 
+                        updated_at = :updated_at
+                """,
+                ExpressionAttributeNames={'#status': 'status'},
+                ExpressionAttributeValues={
+                    ':progress': {
+                        'current_value': current_value,
+                        'percentage': round(progress_pct, 2),
+                        'last_updated': self._iso_timestamp(),
+                        'on_track': on_track
+                    },
+                    ':status': new_status,
+                    ':updated_at': self._iso_timestamp()
+                },
+                ReturnValues='ALL_NEW'
+            )
+            return response['Attributes']
+        except ClientError as e:
+            raise Exception(f"Failed to update goal progress: {e.response['Error']['Message']}")
+    
+    def update_goal(self, goal_id: str, updates: Dict[str, Any]) -> Dict[str, Any]:
+        """Update goal fields"""
+        update_expr = "SET updated_at = :updated_at"
+        expr_values = {':updated_at': self._iso_timestamp()}
+        expr_names = {}
+        
+        for key, value in updates.items():
+            if key not in ['goal_id', 'team_id', 'organization_id', 'created_at']:
+                placeholder_key = f":val_{key.replace('.', '_')}"
+                attr_name = f"#{key}"
+                update_expr += f", {attr_name} = {placeholder_key}"
+                expr_values[placeholder_key] = value
+                expr_names[attr_name] = key
+        
+        try:
+            response = self.goals_table.update_item(
+                Key={'goal_id': goal_id},
+                UpdateExpression=update_expr,
+                ExpressionAttributeValues=expr_values,
+                ExpressionAttributeNames=expr_names if expr_names else None,
+                ReturnValues='ALL_NEW'
+            )
+            return response['Attributes']
+        except ClientError as e:
+            raise Exception(f"Failed to update goal: {e.response['Error']['Message']}")
+    
+    def delete_goal(self, goal_id: str) -> bool:
+        """Cancel a goal (sets status to cancelled)"""
+        try:
+            self.goals_table.update_item(
+                Key={'goal_id': goal_id},
+                UpdateExpression="SET #status = :status, updated_at = :updated_at",
+                ExpressionAttributeNames={'#status': 'status'},
+                ExpressionAttributeValues={
+                    ':status': 'cancelled',
+                    ':updated_at': self._iso_timestamp()
+                }
+            )
+            return True
+        except ClientError as e:
+            raise Exception(f"Failed to delete goal: {e.response['Error']['Message']}")
+    
+    # ==================== Challenges ====================
+    
+    def create_challenge(
+        self,
+        organization_id: str,
+        name: str,
+        description: str,
+        challenge_type: str,
+        rules: Dict[str, Any],
+        start_date: str,
+        end_date: str,
+        created_by: str,
+        prizes: List[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """
+        Create a new challenge
+        
+        Args:
+            organization_id: Organization ID (None for public challenges)
+            name: Challenge name
+            description: Challenge description
+            challenge_type: Type (reduction_race, absolute_lowest, improvement)
+            rules: Challenge rules dictionary
+            start_date: Challenge start date (ISO format)
+            end_date: Challenge end date (ISO format)
+            created_by: User ID who created the challenge
+            prizes: Optional list of prizes
+        
+        Returns:
+            Created challenge data
+        """
+        challenge_id = self._generate_id("challenge")
+        timestamp = self._iso_timestamp()
+        
+        challenge = {
+            'challenge_id': challenge_id,
+            'organization_id': organization_id or 'public',
+            'name': name,
+            'description': description,
+            'challenge_type': challenge_type,
+            'rules': rules,
+            'prizes': prizes or [],
+            'start_date': start_date,
+            'end_date': end_date,
+            'status': 'upcoming',
+            'created_by': created_by,
+            'created_at': timestamp
+        }
+        
+        try:
+            self.challenges_table.put_item(Item=challenge)
+            return challenge
+        except ClientError as e:
+            raise Exception(f"Failed to create challenge: {e.response['Error']['Message']}")
+    
+    def get_challenge(self, challenge_id: str) -> Optional[Dict[str, Any]]:
+        """Get challenge by ID"""
+        try:
+            response = self.challenges_table.get_item(Key={'challenge_id': challenge_id})
+            return response.get('Item')
+        except ClientError as e:
+            raise Exception(f"Failed to get challenge: {e.response['Error']['Message']}")
+    
+    def list_challenges(
+        self,
+        organization_id: str = None,
+        status: str = None
+    ) -> List[Dict[str, Any]]:
+        """
+        List challenges
+        
+        Args:
+            organization_id: Filter by organization (None for all)
+            status: Filter by status (upcoming, active, completed, cancelled)
+        
+        Returns:
+            List of challenges
+        """
+        try:
+            if organization_id:
+                response = self.challenges_table.query(
+                    IndexName='OrganizationChallengesIndex',
+                    KeyConditionExpression='organization_id = :org_id',
+                    ExpressionAttributeValues={':org_id': organization_id}
+                )
+            elif status:
+                response = self.challenges_table.query(
+                    IndexName='StatusIndex',
+                    KeyConditionExpression='#status = :status',
+                    ExpressionAttributeNames={'#status': 'status'},
+                    ExpressionAttributeValues={':status': status}
+                )
+            else:
+                response = self.challenges_table.scan()
+            
+            return response.get('Items', [])
+        except ClientError as e:
+            raise Exception(f"Failed to list challenges: {e.response['Error']['Message']}")
+    
+    def update_challenge(self, challenge_id: str, updates: Dict[str, Any]) -> Dict[str, Any]:
+        """Update challenge fields"""
+        update_expr = "SET updated_at = :updated_at"
+        expr_values = {':updated_at': self._iso_timestamp()}
+        expr_names = {}
+        
+        for key, value in updates.items():
+            if key not in ['challenge_id', 'created_at']:
+                placeholder_key = f":val_{key.replace('.', '_')}"
+                attr_name = f"#{key}"
+                update_expr += f", {attr_name} = {placeholder_key}"
+                expr_values[placeholder_key] = value
+                expr_names[attr_name] = key
+        
+        try:
+            response = self.challenges_table.update_item(
+                Key={'challenge_id': challenge_id},
+                UpdateExpression=update_expr,
+                ExpressionAttributeValues=expr_values,
+                ExpressionAttributeNames=expr_names if expr_names else None,
+                ReturnValues='ALL_NEW'
+            )
+            return response['Attributes']
+        except ClientError as e:
+            raise Exception(f"Failed to update challenge: {e.response['Error']['Message']}")
+    
+    def join_challenge(
+        self,
+        challenge_id: str,
+        participant_id: str,
+        participant_type: str,
+        team_id: str,
+        organization_id: str,
+        baseline_emissions: float = 0.0
+    ) -> Dict[str, Any]:
+        """
+        Join a challenge
+        
+        Args:
+            challenge_id: Challenge ID
+            participant_id: Participant ID (team or user ID)
+            participant_type: Type (team or individual)
+            team_id: Team ID if team participant
+            organization_id: Organization ID
+            baseline_emissions: Starting emissions value
+        
+        Returns:
+            Participation record
+        """
+        timestamp = self._iso_timestamp()
+        
+        participation = {
+            'challenge_id': challenge_id,
+            'participant_id': participant_id,
+            'participant_type': participant_type,
+            'team_id': team_id,
+            'organization_id': organization_id,
+            'stats': {
+                'baseline_emissions': baseline_emissions,
+                'current_emissions': baseline_emissions,
+                'reduction_amount': 0.0,
+                'reduction_percentage': 0.0,
+                'rank': 0,
+                'last_updated': timestamp
+            },
+            'joined_at': timestamp,
+            'status': 'active'
+        }
+        
+        try:
+            self.participants_table.put_item(Item=participation)
+            return participation
+        except ClientError as e:
+            raise Exception(f"Failed to join challenge: {e.response['Error']['Message']}")
+    
+    def leave_challenge(self, challenge_id: str, participant_id: str) -> bool:
+        """Leave a challenge"""
+        try:
+            self.participants_table.update_item(
+                Key={'challenge_id': challenge_id, 'participant_id': participant_id},
+                UpdateExpression="SET #status = :status",
+                ExpressionAttributeNames={'#status': 'status'},
+                ExpressionAttributeValues={':status': 'withdrawn'}
+            )
+            return True
+        except ClientError as e:
+            raise Exception(f"Failed to leave challenge: {e.response['Error']['Message']}")
+    
+    def get_challenge_leaderboard(self, challenge_id: str) -> List[Dict[str, Any]]:
+        """
+        Get challenge leaderboard
+        
+        Args:
+            challenge_id: Challenge ID
+        
+        Returns:
+            List of participants sorted by rank
+        """
+        try:
+            response = self.participants_table.query(
+                KeyConditionExpression='challenge_id = :challenge_id',
+                ExpressionAttributeValues={':challenge_id': challenge_id}
+            )
+            
+            participants = response.get('Items', [])
+            
+            # Sort by reduction percentage (descending)
+            participants.sort(
+                key=lambda x: x.get('stats', {}).get('reduction_percentage', 0),
+                reverse=True
+            )
+            
+            # Update ranks
+            for i, participant in enumerate(participants, 1):
+                participant['stats']['rank'] = i
+            
+            return participants
+        except ClientError as e:
+            raise Exception(f"Failed to get leaderboard: {e.response['Error']['Message']}")
+    
+    def update_participant_stats(
+        self,
+        challenge_id: str,
+        participant_id: str,
+        current_emissions: float
+    ) -> Dict[str, Any]:
+        """Update challenge participant statistics"""
+        try:
+            # Get current participation
+            response = self.participants_table.get_item(
+                Key={'challenge_id': challenge_id, 'participant_id': participant_id}
+            )
+            
+            participant = response.get('Item')
+            if not participant:
+                raise Exception("Participant not found")
+            
+            baseline = float(participant['stats']['baseline_emissions'])
+            reduction_amount = baseline - current_emissions
+            reduction_pct = (reduction_amount / baseline * 100) if baseline > 0 else 0.0
+            
+            # Update stats
+            updated_response = self.participants_table.update_item(
+                Key={'challenge_id': challenge_id, 'participant_id': participant_id},
+                UpdateExpression="""
+                    SET stats.current_emissions = :current,
+                        stats.reduction_amount = :reduction_amt,
+                        stats.reduction_percentage = :reduction_pct,
+                        stats.last_updated = :updated
+                """,
+                ExpressionAttributeValues={
+                    ':current': current_emissions,
+                    ':reduction_amt': round(reduction_amount, 2),
+                    ':reduction_pct': round(reduction_pct, 2),
+                    ':updated': self._iso_timestamp()
+                },
+                ReturnValues='ALL_NEW'
+            )
+            
+            return updated_response['Attributes']
+        except ClientError as e:
+            raise Exception(f"Failed to update participant stats: {e.response['Error']['Message']}")
