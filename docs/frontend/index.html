@@ -21,7 +21,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     
     <style>
-        [v-cloak] { display: none; }
+        [v-cloak] { display: none !important; }
         
         :root {
             --primary-50: #eff6ff;
@@ -192,7 +192,7 @@
     </style>
 </head>
 <body class="bg-gray-50">
-    <div id="app">
+    <div id="app" v-cloak>
         <!-- Debug: Vue app container -->
         <!-- Navigation -->
         <nav class="gradient-bg text-white shadow-2xl relative overflow-hidden">
