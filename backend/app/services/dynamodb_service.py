@@ -4,8 +4,7 @@ Handles all database operations for users, carbon data, goals, and achievements
 """
 
 import boto3
-import json
-from datetime import datetime, date
+from datetime import datetime
 from typing import Dict, Any, List, Optional
 from decimal import Decimal
 from botocore.exceptions import ClientError
@@ -17,6 +16,7 @@ from app.models.dynamodb_models import (
     GoalModel,
     AchievementModel
 )
+from boto3.dynamodb.conditions import Key
 
 
 class DynamoDBService:
@@ -39,9 +39,9 @@ class DynamoDBService:
             item = user_data.to_dynamodb_item()
             
             # Use condition expression to prevent overwriting existing users
-            response = self.users_table.put_item(
+            self.users_table.put_item(
                 Item=item,
-                ConditionExpression='attribute_not_exists(user_id)',
+                ConditionExpression='attribute_not_exists(userId)',
                 ReturnValues='ALL_OLD'
             )
             
@@ -55,7 +55,8 @@ class DynamoDBService:
     async def get_user_profile(self, user_id: str) -> Optional[Dict[str, Any]]:
         """Get user profile by user_id"""
         try:
-            response = self.users_table.get_item(Key={'user_id': user_id})
+            # Users table uses partition key userId in schema
+            response = self.users_table.get_item(Key={'userId': user_id})
             return response.get('Item')
         except ClientError as e:
             print(f"Error getting user profile: {e}")
@@ -69,7 +70,7 @@ class DynamoDBService:
             expression_values = {}
             
             for key, value in updates.items():
-                if key != 'user_id':  # Don't update the partition key
+                if key != 'userId':  # Don't update the partition key
                     update_expression += f"{key} = :{key}, "
                     expression_values[f":{key}"] = value
             
@@ -78,7 +79,7 @@ class DynamoDBService:
             expression_values[':updated_at'] = datetime.utcnow().isoformat()
             
             self.users_table.update_item(
-                Key={'user_id': user_id},
+                Key={'userId': user_id},
                 UpdateExpression=update_expression,
                 ExpressionAttributeValues=expression_values
             )
@@ -127,8 +128,7 @@ class DynamoDBService:
         try:
             # Build query parameters
             query_params = {
-                'KeyConditionExpression': 'userId = :user_id',
-                'ExpressionAttributeValues': {':user_id': user_id},
+                'KeyConditionExpression': Key('userId').eq(user_id),
                 'ScanIndexForward': False,  # Sort by timestamp descending (newest first)
                 'Limit': limit
             }
@@ -136,19 +136,11 @@ class DynamoDBService:
             # Add date filtering if provided
             if start_date or end_date:
                 if start_date and end_date:
-                    query_params['KeyConditionExpression'] += ' AND #ts BETWEEN :start_date AND :end_date'
-                    query_params['ExpressionAttributeValues'].update({
-                        ':start_date': start_date,
-                        ':end_date': end_date
-                    })
+                    query_params['KeyConditionExpression'] = query_params['KeyConditionExpression'] & Key('timestamp').between(start_date, end_date)
                 elif start_date:
-                    query_params['KeyConditionExpression'] += ' AND #ts >= :start_date'
-                    query_params['ExpressionAttributeValues'][':start_date'] = start_date
+                    query_params['KeyConditionExpression'] = query_params['KeyConditionExpression'] & Key('timestamp').gte(start_date)
                 elif end_date:
-                    query_params['KeyConditionExpression'] += ' AND #ts <= :end_date'
-                    query_params['ExpressionAttributeValues'][':end_date'] = end_date
-                
-                query_params['ExpressionAttributeNames'] = {'#ts': 'timestamp'}
+                    query_params['KeyConditionExpression'] = query_params['KeyConditionExpression'] & Key('timestamp').lte(end_date)
             
             response = self.entries_table.query(**query_params)
             return response.get('Items', [])
@@ -274,11 +266,10 @@ class DynamoDBService:
         """Update user's emission statistics"""
         try:
             current_date = datetime.utcnow()
-            current_month = current_date.strftime('%Y-%m')
             
             # Update total emissions and entry count
             self.users_table.update_item(
-                Key={'user_id': user_id},
+                Key={'userId': user_id},
                 UpdateExpression='ADD total_emissions :co2, entries_count :one SET last_active = :now',
                 ExpressionAttributeValues={
                     ':co2': float(co2_amount),

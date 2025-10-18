@@ -1,8 +1,8 @@
 """Carbon tracking API routes"""
 
 from fastapi import APIRouter, Depends, status, Query, HTTPException
-from typing import Dict, Any, List, Optional
-from datetime import date
+from typing import Dict, Any, Optional
+from datetime import date, datetime
 from decimal import Decimal
 
 from app.schemas.carbon import (
@@ -95,7 +95,7 @@ async def get_available_activities():
         raise HTTPException(status_code=500, detail=f"Error retrieving activities: {str(e)}")
 
 
-@router.get("/", response_model=List[Dict[str, Any]])
+@router.get("/")
 async def get_carbon_emissions(
     current_user: Dict[str, Any] = Depends(get_current_user),
     category: Optional[EmissionCategory] = Query(None, description="Filter by category"),
@@ -131,8 +131,43 @@ async def get_carbon_emissions(
         # Filter by category if specified
         if category:
             emissions = [e for e in emissions if e.get('category') == category.value]
-        
-        return emissions
+
+        # Map items to frontend-friendly structure
+        ui_emissions = []
+        for e in emissions:
+            ui_emissions.append({
+                "id": e.get("entry_id") or e.get("timestamp"),
+                "category": e.get("category"),
+                "activity": e.get("activity"),
+                "amount": float(e.get("co2_equivalent", e.get("amount", 0)) or 0),
+                "unit": e.get("unit", "kg"),
+                "date": e.get("date"),
+                "description": e.get("description"),
+                "co2_equivalent": float(e.get("co2_equivalent", 0) or 0),
+                "emission_factor": float(e.get("emission_factor", 0) or 0),
+            })
+
+        # Compute totals
+        total_emissions = sum(item.get("co2_equivalent") or 0 for item in ui_emissions)
+        # Monthly emissions for current month
+        current_month_prefix = datetime.utcnow().strftime("%Y-%m")
+        monthly_emissions = sum(
+            (item.get("co2_equivalent") or 0)
+            for item in ui_emissions
+            if isinstance(item.get("date"), str) and item.get("date", "").startswith(current_month_prefix)
+        )
+        # Goal progress against a simple 300kg monthly target (until user-specific budget implemented)
+        goal_progress = min(int(round((monthly_emissions / 300.0) * 100)), 100) if monthly_emissions else 0
+
+        return {
+            "success": True,
+            "data": {
+                "emissions": ui_emissions,
+                "total_emissions": round(total_emissions, 2),
+                "monthly_emissions": round(monthly_emissions, 2),
+                "goal_progress": goal_progress
+            }
+        }
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error retrieving emissions: {str(e)}")
@@ -172,7 +207,7 @@ async def create_carbon_emission(
         # Create CarbonEmissionModel
         carbon_emission = CarbonEmissionModel(
             user_id=user_id,
-            date=emission_data.date,
+            emission_date=emission_data.date,
             category=emission_data.category.value,
             activity=emission_data.activity,
             amount=Decimal(str(emission_data.amount)),
@@ -187,14 +222,18 @@ async def create_carbon_emission(
         
         if result.get("success"):
             return {
-                "id": result["entry_id"],
-                "user_id": user_id,
+                "success": True,
                 "message": "Carbon emission recorded successfully",
-                "co2_equivalent": float(co2_equivalent),
-                "emission_factor": float(emission_factor),
-                "calculation_details": calculation_result["calculation_details"],
-                "calculation_region": calculation_result["region"],
-                **emission_data.dict()
+                "data": {
+                    "emission_id": result.get("entry_id"),
+                    "timestamp": result.get("timestamp"),
+                    "user_id": user_id,
+                    "co2_equivalent": float(co2_equivalent),
+                    "emission_factor": float(emission_factor),
+                    "calculation_details": calculation_result["calculation_details"],
+                    "calculation_region": calculation_result["region"],
+                    **emission_data.dict()
+                }
             }
         else:
             raise HTTPException(status_code=500, detail=result.get("error", "Failed to create emission"))

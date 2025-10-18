@@ -21,7 +21,8 @@ class CarbonEmissionModel:
 
     def to_dynamodb_item(self) -> Dict[str, Any]:
         item = {
-            'user_id': self.user_id,
+            # Use table's partition key naming (userId)
+            'userId': self.user_id,
             'entry_id': self.entry_id,
             'date': self.emission_date.isoformat(),
             'category': self.category,
