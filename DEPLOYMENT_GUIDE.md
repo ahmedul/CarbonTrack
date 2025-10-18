@@ -81,3 +81,25 @@ Users can immediately:
 - **Admin Access**: Use "Quick Admin Login" for testing
 
 The application is production-ready for immediate deployment and user testing!
+ 
+## 🧰 GitHub Actions: Deploy Frontend to S3
+
+This repo includes `.github/workflows/deploy-frontend.yml` to deploy `frontend/` to an S3 website bucket.
+
+### Prerequisites
+- S3 website buckets:
+	- Production: `carbontrack-frontend-production` (Region: us-east-1)
+	- Staging: `carbontrack-frontend-staging` (optional)
+- Configure one of the following in GitHub Secrets:
+	- `AWS_ROLE_TO_ASSUME` (preferred OIDC role), or
+	- `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`
+- Optional: `CLOUDFRONT_DISTRIBUTION_ID` to invalidate cache post-deploy
+
+### How it works
+- Triggers on push to `main` affecting `frontend/**` or via manual dispatch
+- Syncs the `frontend/` directory to the chosen S3 bucket
+- Sets long cache headers for JS/CSS; index.html uses no-cache to ensure users see latest
+- Optionally creates a CloudFront invalidation if configured
+
+### HTTPS Notice
+S3 Website endpoints are HTTP-only. For HTTPS, use CloudFront in front of the bucket and an ACM certificate; update DNS to a custom domain pointing at CloudFront.

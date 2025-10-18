@@ -40,7 +40,7 @@ async def get_gamification_profile(
         if not user_id:
             raise HTTPException(status_code=401, detail="Invalid user authentication")
         
-        # Mock user stats - in production, get from database
+        # Privacy-safe behavior: for non-demo users without data, return empty/zeroed profile
         user_stats = await _get_user_stats(user_id)
         
         # Calculate user level and progress
@@ -273,7 +273,7 @@ async def get_leaderboards(
         if period:
             available_leaderboards = [lb for lb in available_leaderboards if lb["period"] == period]
         
-        # Get sample user data for leaderboards (in production, get from database)
+        # For privacy, don't include mock global data for regular users
         user_data = await _get_leaderboard_user_data()
         
         # Generate leaderboards
@@ -393,57 +393,91 @@ async def get_gamification_stats(
 # Helper functions (in production, these would interact with database)
 
 async def _get_user_stats(user_id: str) -> Dict[str, Any]:
-    """Get user statistics for gamification calculations"""
-    # Mock data - replace with actual database queries
+    """Get user statistics for gamification calculations.
+    Privacy-safe default: return zeros/empty for regular users until real data exists.
+    Demo/admin/mock users may receive illustrative sample data in debug.
+    """
+    from app.core.config import settings
+    def _is_demo(uid: str) -> bool:
+        return uid in ("demo-user", "admin-user", "mock_admin_id") or (settings.debug and str(uid).startswith("mock_"))
+
+    if _is_demo(user_id):
+        return {
+            "total_points": 2850,
+            "total_activities": 47,
+            "achievements_count": 8,
+            "goals_achieved": 3,
+            "goals_set": 5,
+            "current_streak": 12,
+            "longest_streak": 18,
+            "total_co2_reduced": 245.7,
+            "recommendations_completed": 6,
+            "activity_dates": [
+                "2025-09-19", "2025-09-20", "2025-09-21", "2025-09-22", "2025-09-23",
+                "2025-09-24", "2025-09-25", "2025-09-26", "2025-09-27", "2025-09-28",
+                "2025-09-29", "2025-09-30"
+            ],
+            "points_today": 150,
+            "points_this_week": 850,
+            "points_this_month": 2850,
+            "activities_today": 3,
+            "activities_this_week": 18,
+            "activities_this_month": 47,
+            "co2_reduced_this_week": 45.2,
+            "co2_reduced_this_month": 245.7,
+            "avg_activities_per_day": 2.3,
+            "environmental_impact_score": 78
+        }
+    # Regular users: empty defaults
     return {
-        "total_points": 2850,
-        "total_activities": 47,
-        "achievements_count": 8,
-        "goals_achieved": 3,
-        "goals_set": 5,
-        "current_streak": 12,
-        "longest_streak": 18,
-        "total_co2_reduced": 245.7,
-        "recommendations_completed": 6,
-        "activity_dates": [
-            "2025-09-19", "2025-09-20", "2025-09-21", "2025-09-22", "2025-09-23",
-            "2025-09-24", "2025-09-25", "2025-09-26", "2025-09-27", "2025-09-28",
-            "2025-09-29", "2025-09-30"
-        ],
-        "points_today": 150,
-        "points_this_week": 850,
-        "points_this_month": 2850,
-        "activities_today": 3,
-        "activities_this_week": 18,
-        "activities_this_month": 47,
-        "co2_reduced_this_week": 45.2,
-        "co2_reduced_this_month": 245.7,
-        "avg_activities_per_day": 2.3,
-        "environmental_impact_score": 78
+        "total_points": 0,
+        "total_activities": 0,
+        "achievements_count": 0,
+        "goals_achieved": 0,
+        "goals_set": 0,
+        "current_streak": 0,
+        "longest_streak": 0,
+        "total_co2_reduced": 0,
+        "recommendations_completed": 0,
+        "activity_dates": [],
+        "points_today": 0,
+        "points_this_week": 0,
+        "points_this_month": 0,
+        "activities_today": 0,
+        "activities_this_week": 0,
+        "activities_this_month": 0,
+        "co2_reduced_this_week": 0,
+        "co2_reduced_this_month": 0,
+        "avg_activities_per_day": 0,
+        "environmental_impact_score": 0
     }
 
 
 async def _get_user_achievements(user_id: str) -> List[Dict[str, Any]]:
-    """Get user's earned achievements"""
-    # Mock data - replace with actual database queries
-    return [
-        {
-            "achievement_id": "first_entry",
-            "name": "Getting Started",
-            "points": 50,
-            "tier": "bronze",
-            "icon": "🌱",
-            "earned_at": "2025-09-15T10:00:00Z"
-        },
-        {
-            "achievement_id": "carbon_conscious",
-            "name": "Carbon Conscious",
-            "points": 200,
-            "tier": "bronze", 
-            "icon": "🌍",
-            "earned_at": "2025-09-18T14:30:00Z"
-        }
-    ]
+    """Get user's earned achievements.
+    Returns empty for regular users by default; sample only for demo/admin/mock in debug.
+    """
+    from app.core.config import settings
+    if user_id in ("demo-user", "admin-user", "mock_admin_id") or (settings.debug and str(user_id).startswith("mock_")):
+        return [
+            {
+                "achievement_id": "first_entry",
+                "name": "Getting Started",
+                "points": 50,
+                "tier": "bronze",
+                "icon": "🌱",
+                "earned_at": "2025-09-15T10:00:00Z"
+            },
+            {
+                "achievement_id": "carbon_conscious",
+                "name": "Carbon Conscious",
+                "points": 200,
+                "tier": "bronze", 
+                "icon": "🌍",
+                "earned_at": "2025-09-18T14:30:00Z"
+            }
+        ]
+    return []
 
 
 async def _get_recent_achievements(user_id: str, limit: int) -> List[Dict[str, Any]]:
@@ -453,16 +487,20 @@ async def _get_recent_achievements(user_id: str, limit: int) -> List[Dict[str, A
 
 
 async def _get_completed_challenges_today(user_id: str) -> List[Dict[str, Any]]:
-    """Get challenges completed by user today"""
-    # Mock data - replace with actual database queries
-    return [
-        {
-            "challenge_id": "daily_logger",
-            "name": "Daily Logger",
-            "points_earned": 150,
-            "completed_at": "2025-09-30T16:45:00Z"
-        }
-    ]
+    """Get challenges completed by user today.
+    Returns empty by default for regular users.
+    """
+    from app.core.config import settings
+    if user_id in ("demo-user", "admin-user", "mock_admin_id") or (settings.debug and str(user_id).startswith("mock_")):
+        return [
+            {
+                "challenge_id": "daily_logger",
+                "name": "Daily Logger",
+                "points_earned": 150,
+                "completed_at": "2025-09-30T16:45:00Z"
+            }
+        ]
+    return []
 
 
 async def _update_user_points(user_id: str, points: int) -> bool:
@@ -473,166 +511,11 @@ async def _update_user_points(user_id: str, points: int) -> bool:
 
 
 async def _get_leaderboard_user_data() -> List[Dict[str, Any]]:
-    """Get user data for leaderboard generation"""
-    # Mock data - replace with actual database queries
-    return [
-        {
-            "user_id": "user_1",
-            "username": "eco_warrior_2025",
-            "display_name": "Alex Green",
-            "total_points": 4850,
-            "points_today": 200,
-            "points_this_week": 1200,
-            "points_this_month": 4850,
-            "current_streak": 25,
-            "total_activities": 89,
-            "activities_today": 4,
-            "activities_this_week": 22,
-            "activities_this_month": 89,
-            "total_co2_reduced": 456.8,
-            "co2_reduced_this_week": 78.5,
-            "co2_reduced_this_month": 456.8,
-            "goals_achieved": 7,
-            "level": 5,
-            "achievements_count": 15
-        },
-        {
-            "user_id": "user_2",
-            "username": "carbon_crusher",
-            "display_name": "Sam Wilson", 
-            "total_points": 3200,
-            "points_today": 180,
-            "points_this_week": 950,
-            "points_this_month": 3200,
-            "current_streak": 18,
-            "total_activities": 65,
-            "activities_today": 3,
-            "activities_this_week": 18,
-            "activities_this_month": 65,
-            "total_co2_reduced": 298.4,
-            "co2_reduced_this_week": 52.3,
-            "co2_reduced_this_month": 298.4,
-            "goals_achieved": 4,
-            "level": 4,
-            "achievements_count": 11
-        }
-        # Add more mock users...
-    ]
+    """Get user data for leaderboard generation.
+    For now, return empty to avoid showing unrelated users to regular accounts.
+    Demo/admin users may receive sample data in future behind an explicit flag.
+    """
+    return []
 
 
 # Helper functions for gamification API endpoints
-async def _get_user_stats(user_id: str) -> Dict[str, Any]:
-    """Get user statistics for gamification calculations."""
-    # Mock user stats - in production, this would come from database
-    return {
-        "total_points": 1250,
-        "level": 4,
-        "current_streak": 12,
-        "longest_streak": 23,
-        "activities_completed": 156,
-        "achievements_earned": 11,
-        "challenges_completed": 28,
-        "co2_reduced_total": 298.4,
-        "co2_reduced_this_week": 52.3,
-        "co2_reduced_this_month": 298.4
-    }
-
-
-async def _get_recent_achievements(user_id: str, limit: int = 5) -> List[Dict[str, Any]]:
-    """Get recent achievements for a user."""
-    # Mock recent achievements
-    return [
-        {
-            "achievement_id": "streak_bronze_12",
-            "name": "Streak Master - Bronze",
-            "description": "Maintain a 7-day tracking streak",
-            "tier": "bronze",
-            "category": "streaks",
-            "points_awarded": 50,
-            "earned_date": "2025-09-28T10:30:00Z",
-            "icon": "🔥"
-        },
-        {
-            "achievement_id": "carbon_reducer_silver_15",
-            "name": "Carbon Reducer - Silver",
-            "description": "Reduce 200kg CO2 total",
-            "tier": "silver", 
-            "category": "carbon_reduction",
-            "points_awarded": 150,
-            "earned_date": "2025-09-25T15:45:00Z",
-            "icon": "🌱"
-        }
-    ][:limit]
-
-
-async def _get_user_achievements(user_id: str) -> List[Dict[str, Any]]:
-    """Get all earned achievements for a user."""
-    # Mock earned achievements
-    return [
-        {
-            "achievement_id": "first_entry_1",
-            "name": "Getting Started",
-            "description": "Log your first carbon activity",
-            "tier": "bronze",
-            "category": "milestones",
-            "points_awarded": 25,
-            "earned_date": "2025-09-15T09:00:00Z"
-        },
-        {
-            "achievement_id": "streak_bronze_12",
-            "name": "Streak Master - Bronze", 
-            "description": "Maintain a 7-day tracking streak",
-            "tier": "bronze",
-            "category": "streaks",
-            "points_awarded": 50,
-            "earned_date": "2025-09-28T10:30:00Z"
-        }
-    ]
-
-
-async def _get_completed_challenges_today(user_id: str) -> List[str]:
-    """Get IDs of challenges completed today."""
-    # Mock completed challenges today
-    return ["challenge_daily_transport_20250930"]
-
-
-async def _update_user_points(user_id: str, points: int) -> None:
-    """Update user points after completing a challenge."""
-    # Mock points update - in production, this would update database
-    logger.info(f"Updated user {user_id} with {points} points")
-    return
-
-
-async def _get_leaderboard_user_data() -> List[Dict[str, Any]]:
-    """Get user data for leaderboard generation."""
-    # Return the same mock data used above
-    return [
-        {
-            "user_id": "user123",
-            "username": "EcoWarrior2025",
-            "total_points": 1250,
-            "level": 4,
-            "current_streak": 12,
-            "activities_this_week": 8,
-            "activities_this_month": 35,
-            "total_co2_reduced": 124.7,
-            "co2_reduced_this_week": 23.1,
-            "co2_reduced_this_month": 124.7,
-            "goals_achieved": 2,
-            "achievements_count": 8
-        },
-        {
-            "user_id": "user456", 
-            "username": "GreenThumb42",
-            "total_points": 980,
-            "level": 3,
-            "current_streak": 8,
-            "activities_this_week": 6,
-            "activities_this_month": 28,
-            "total_co2_reduced": 89.3,
-            "co2_reduced_this_week": 18.5,
-            "co2_reduced_this_month": 89.3,
-            "goals_achieved": 1,
-            "achievements_count": 6
-        }
-    ]

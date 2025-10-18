@@ -23,7 +23,7 @@ from typing import Dict, List, Any
 
 # DynamoDB configuration
 TABLE_NAME = "carbontrack-activities"
-REGION = "us-east-1"
+REGION = "eu-central-1"
 
 def get_dynamodb_client():
     """Get DynamoDB client"""

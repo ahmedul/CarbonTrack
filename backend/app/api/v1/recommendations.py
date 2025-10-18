@@ -46,6 +46,19 @@ async def get_user_recommendations(
             
         # Get user activities for analysis
         activities = await activity_service.get_user_activities(user_id)
+
+        # Privacy-safe default: if no activities/emissions for this user, return empty set
+        if not activities:
+            return {
+                "success": True,
+                "data": {
+                    "recommendations": [],
+                    "user_patterns": recommendation_engine.analyze_user_patterns([]),
+                    "total_potential_savings_kg": 0,
+                    "implementation_stats": {"easy": 0, "medium": 0, "hard": 0, "free": 0, "low_cost": 0, "medium_cost": 0, "high_cost": 0},
+                    "count": 0
+                }
+            }
         
         # Generate personalized recommendations
         recommendations = recommendation_engine.generate_recommendations(
@@ -150,6 +163,21 @@ async def get_recommendation_stats(
             
         # Get user activities
         activities = await activity_service.get_user_activities(user_id)
+
+        # If no activities/emissions yet, return zeros
+        if not activities:
+            empty_stats = {
+                "total_recommendations": 0,
+                "by_category": {},
+                "by_difficulty": {},
+                "by_cost": {},
+                "potential_impact": {
+                    "total_co2_savings_kg": 0,
+                    "high_impact_count": 0,
+                    "quick_wins": 0
+                }
+            }
+            return {"success": True, "data": empty_stats}
         
         # Generate recommendations for analysis
         all_recommendations = recommendation_engine.generate_recommendations(

@@ -16,7 +16,10 @@ const app = createApp({
             currentView: 'home',
             isAuthenticated: false,
             authToken: null,
-            apiBase: 'https://nlkyarlri3.execute-api.eu-central-1.amazonaws.com/prod',
+            // Use localhost for development, production URL for deployment
+            apiBase: window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+                ? 'http://localhost:8000' 
+                : 'https://nlkyarlri3.execute-api.eu-central-1.amazonaws.com/prod',
             
             // User data
             userProfile: {
@@ -221,27 +224,63 @@ const app = createApp({
         }
     },
     
-    mounted() {
+    async mounted() {
         console.log('Vue app mounted successfully!');
         // Check for stored authentication
         const token = localStorage.getItem('carbontrack_token');
         if (token) {
             this.authToken = token;
-            this.isAuthenticated = true;
-            this.loadUserData();
-            this.loadEmissions();
-            this.loadRecommendations();
-            this.loadRecommendationStats();
-            
-            // Load admin data if user is admin
-            if (this.userProfile.role === 'admin') {
-                this.loadAdminData();
+            // Validate the token with backend before loading data
+            const valid = await this.validateSession();
+            if (valid) {
+                this.loadEmissions();
+                this.loadRecommendations();
+                this.loadRecommendationStats();
+                // Load admin data if user is admin and token present
+                if (this.userProfile.role === 'admin' && this.authToken) {
+                    this.loadAdminData();
+                }
+            } else {
+                // Invalid/expired token — clear state and show login
+                this.logout();
             }
         }
         this.initializeChart();
     },
     
     methods: {
+        // Validate session by calling profile; clears bad tokens to avoid 401 spam
+        async validateSession() {
+            if (!this.authToken) return false;
+            try {
+                const resp = await axios.get(`${this.apiBase}/api/profile`, {
+                    headers: {
+                        'Authorization': `Bearer ${this.authToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                if (resp && resp.data) {
+                    // Normalize profile from API
+                    const p = resp.data;
+                    this.userProfile = {
+                        user_id: p.user_id || p.userId || '',
+                        email: p.email || '',
+                        full_name: p.full_name || p.fullName || '',
+                        carbon_budget: p.carbon_budget ?? 500,
+                        role: p.role || 'user'
+                    };
+                    this.isAuthenticated = true;
+                    return true;
+                }
+                return false;
+            } catch (e) {
+                console.warn('Token validation failed; clearing session.', e?.response?.status);
+                localStorage.removeItem('carbontrack_token');
+                this.authToken = null;
+                this.isAuthenticated = false;
+                return false;
+            }
+        },
         // Activity selection helper
         selectActivity(option) {
             this.emissionForm.activity = option.key;
@@ -448,16 +487,39 @@ const app = createApp({
                     this.monthlyEmissions = response.data.data.monthly_emissions || 0;
                     this.goalProgress = response.data.data.goal_progress || 0;
                 } else {
-                    console.log('❌ API call failed, using fallback demo data');
-                    this.loadDemoEmissions();
+                    console.log('❌ API call failed');
+                    this.handleEmissionsFallback();
                 }
             } catch (error) {
                 console.error('Error loading emissions from API:', error);
-                console.log('📡 API not available, using demo data as fallback');
-                this.loadDemoEmissions();
+                this.handleEmissionsFallback(error);
             } finally {
                 this.loading = false;
             }
+        },
+
+        handleEmissionsFallback(error) {
+            const isAuthError = error?.response?.status === 401;
+            // Only show demo emissions for explicit demo/admin users
+            if (this.userProfile.user_id === 'demo-user' || this.userProfile.user_id === 'admin-user') {
+                console.log('Using demo emissions for demo/admin user');
+                this.loadDemoEmissions();
+                return;
+            }
+            // For unauthenticated or regular users, do not inject demo data
+            if (isAuthError || !this.isAuthenticated || !this.authToken) {
+                console.log('Unauthenticated or auth error; showing empty emissions.');
+                this.emissions = [];
+                this.totalEmissions = 0;
+                this.monthlyEmissions = 0;
+                this.goalProgress = 0;
+                return;
+            }
+            // Non-auth related failures (network etc): keep safe empty fallback
+            this.emissions = [];
+            this.totalEmissions = 0;
+            this.monthlyEmissions = 0;
+            this.goalProgress = 0;
         },
         
         loadDemoEmissions() {

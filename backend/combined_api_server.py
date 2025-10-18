@@ -82,6 +82,18 @@ class CarbonEmissionCreate(BaseModel):
 
 # Authentication helper functions
 def get_dynamodb_client():
+    """Create a DynamoDB client.
+    If DYNAMODB_ENDPOINT is set, connect to local/override endpoint for development.
+    """
+    endpoint = os.getenv("DYNAMODB_ENDPOINT")
+    if endpoint:
+        return boto3.client(
+            'dynamodb',
+            endpoint_url=endpoint,
+            region_name=REGION,
+            aws_access_key_id='fake',
+            aws_secret_access_key='fake'
+        )
     return boto3.client('dynamodb', region_name=REGION)
 
 def hash_password(password: str) -> str:
@@ -252,6 +264,63 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> Dict[str, Any
         headers={"WWW-Authenticate": "Bearer"},
     )
     
+    # Development shortcut: allow demo tokens when ALLOW_DEMO_TOKENS=1 is set
+    allow_demo = os.getenv('ALLOW_DEMO_TOKENS', '0') == '1'
+    if allow_demo:
+        if token == 'demo-token-123' or token == 'demo-token-12345':
+            # Return demo user profile without contacting DB
+            return {
+                'user_id': 'demo-user',
+                'email': 'demo@carbontrack.dev',
+                'password_hash': '',
+                'full_name': 'Demo User',
+                'role': 'user',
+                'status': 'active',
+                'email_verified': True,
+                'carbon_budget': 500.0,
+                'total_emissions': 0.0,
+                'current_month_emissions': 0.0,
+                'entries_count': 0,
+                'created_at': datetime.utcnow().isoformat(),
+                'updated_at': datetime.utcnow().isoformat(),
+                'last_active': datetime.utcnow().isoformat()
+            }
+        # Development-only test token that simulates a regular (non-demo) user
+        if token == 'test-token-123' or token == 'test-token-local':
+            return {
+                'user_id': 'test-user',
+                'email': 'test@local.dev',
+                'password_hash': '',
+                'full_name': 'Local Test User',
+                'role': 'user',
+                'status': 'active',
+                'email_verified': True,
+                'carbon_budget': 500.0,
+                'total_emissions': 0.0,
+                'current_month_emissions': 0.0,
+                'entries_count': 0,
+                'created_at': datetime.utcnow().isoformat(),
+                'updated_at': datetime.utcnow().isoformat(),
+                'last_active': datetime.utcnow().isoformat()
+            }
+        if token == 'demo-admin-token' or token == 'demo-token-admin':
+            return {
+                'user_id': 'admin-user',
+                'email': 'admin@carbontrack.dev',
+                'password_hash': '',
+                'full_name': 'Admin User',
+                'role': 'admin',
+                'status': 'active',
+                'email_verified': True,
+                'carbon_budget': 1000.0,
+                'total_emissions': 0.0,
+                'current_month_emissions': 0.0,
+                'entries_count': 0,
+                'created_at': datetime.utcnow().isoformat(),
+                'updated_at': datetime.utcnow().isoformat(),
+                'last_active': datetime.utcnow().isoformat()
+            }
+
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         email: str = payload.get("sub")
@@ -1177,21 +1246,33 @@ async def get_carbon_emissions(current_user: Dict[str, Any] = Depends(get_curren
                 "created_at": item['created_at']['S']
             })
         
-        # If no real data, return some sample data for demo purposes
+        # If no real data, return empty list for regular users.
         if not emissions:
-            print(f"No emissions found for user {user_id}, returning sample data")
-            sample_emissions = await get_sample_emissions_data(user_id)
-            total = sum(e['co2_equivalent'] for e in sample_emissions)
-            monthly = sum(e['co2_equivalent'] for e in sample_emissions if e['date'].startswith(datetime.now().strftime('%Y-%m')))
-            return {
-                "success": True,
-                "data": {
-                    "emissions": sample_emissions,
-                    "total_emissions": round(total, 2),
-                    "monthly_emissions": round(monthly, 2),
-                    "goal_progress": min(93, int((monthly / 300) * 100)) if monthly else 0
+            print(f"No emissions found for user {user_id}. Returning empty list (no demo data for regular users).")
+            # Only return demo/sample data for demo or admin users
+            if user_id in ("demo-user", "admin-user"):
+                sample_emissions = await get_sample_emissions_data(user_id)
+                total = sum(e['co2_equivalent'] for e in sample_emissions)
+                monthly = sum(e['co2_equivalent'] for e in sample_emissions if e['date'].startswith(datetime.now().strftime('%Y-%m')))
+                return {
+                    "success": True,
+                    "data": {
+                        "emissions": sample_emissions,
+                        "total_emissions": round(total, 2),
+                        "monthly_emissions": round(monthly, 2),
+                        "goal_progress": min(93, int((monthly / 300) * 100)) if monthly else 0
+                    }
                 }
-            }
+            else:
+                return {
+                    "success": True,
+                    "data": {
+                        "emissions": [],
+                        "total_emissions": 0.0,
+                        "monthly_emissions": 0.0,
+                        "goal_progress": 0
+                    }
+                }
         
         # Calculate totals
         total_emissions = sum(e['co2_equivalent'] for e in emissions)
@@ -1209,19 +1290,38 @@ async def get_carbon_emissions(current_user: Dict[str, Any] = Depends(get_curren
         
     except Exception as e:
         print(f"Error querying emissions: {e}")
-        # Fallback to sample data
-        sample_emissions = await get_sample_emissions_data(user_id)
-        total = sum(e['co2_equivalent'] for e in sample_emissions)
-        monthly = sum(e['co2_equivalent'] for e in sample_emissions if e['date'].startswith(datetime.now().strftime('%Y-%m')))
-        return {
-            "success": True,
-            "data": {
-                "emissions": sample_emissions,
-                "total_emissions": round(total, 2),
-                "monthly_emissions": round(monthly, 2),
-                "goal_progress": min(93, int((monthly / 300) * 100)) if monthly else 0
+        # Only return sample/demo data for demo/admin users.
+        if user_id in ("demo-user", "admin-user"):
+            sample_emissions = await get_sample_emissions_data(user_id)
+            total = sum(e['co2_equivalent'] for e in sample_emissions)
+            monthly = sum(e['co2_equivalent'] for e in sample_emissions if e['date'].startswith(datetime.now().strftime('%Y-%m')))
+            return {
+                "success": True,
+                "data": {
+                    "emissions": sample_emissions,
+                    "total_emissions": round(total, 2),
+                    "monthly_emissions": round(monthly, 2),
+                    "goal_progress": min(93, int((monthly / 300) * 100)) if monthly else 0
+                }
             }
-        }
+        else:
+            # In local dev mode (ALLOW_DEMO_TOKENS), prefer returning an empty list
+            # so the frontend doesn't switch to demo/offline mode.
+            allow_demo = os.getenv('ALLOW_DEMO_TOKENS', '0') == '1'
+            if allow_demo:
+                return {
+                    "success": True,
+                    "data": {
+                        "emissions": [],
+                        "total_emissions": 0.0,
+                        "monthly_emissions": 0.0,
+                        "goal_progress": 0
+                    }
+                }
+            return {
+                "success": False,
+                "error": "Failed to query emissions"
+            }
 
 async def get_sample_emissions_data(user_id: str):
     """Generate sample emissions data for demo purposes"""

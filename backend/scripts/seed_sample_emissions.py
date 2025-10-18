@@ -21,7 +21,7 @@ import uuid
 # DynamoDB configuration
 EMISSIONS_TABLE = "carbontrack-emissions"
 USERS_TABLE = "carbontrack-users" 
-REGION = "us-east-1"
+REGION = "eu-central-1"
 
 # Demo user IDs
 DEMO_USER_ID = "demo-user"

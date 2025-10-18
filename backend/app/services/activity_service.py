@@ -2,7 +2,7 @@
 Activity Service - Manages user carbon tracking activities
 """
 
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 import logging
 
@@ -28,77 +28,120 @@ class ActivityService:
             List of user activities with carbon impact data
         """
         try:
-            # Generate sample activities for demo purposes
-            activities = []
-            end_date = datetime.now()
+            # Only generate sample activities for explicit demo/admin/mock users; otherwise derive from real emissions or return empty
+            from app.core.config import settings
+            from app.services.dynamodb_service import dynamodb_service
+
+            def _is_demo_user(uid: Optional[str]) -> bool:
+                return bool(
+                    uid
+                    and (
+                        uid in ("demo-user", "admin-user", "mock_admin_id")
+                        or (settings.debug and str(uid).startswith("mock_"))
+                    )
+                )
+
+            end_date = datetime.utcnow()
             start_date = end_date - timedelta(days=days)
-            
-            # Sample activity types and their carbon impact
-            sample_activities = [
-                {
-                    "activity_type": "transportation",
-                    "activity_name": "Drive to work",
-                    "carbon_footprint": 12.5,
-                    "category": "commute",
-                    "description": "Daily commute by car"
-                },
-                {
-                    "activity_type": "transportation", 
-                    "activity_name": "Public transport",
-                    "carbon_footprint": 3.2,
-                    "category": "commute",
-                    "description": "Bus/metro commute"
-                },
-                {
-                    "activity_type": "energy",
-                    "activity_name": "Home electricity",
-                    "carbon_footprint": 8.7,
-                    "category": "utilities",
-                    "description": "Daily electricity usage"
-                },
-                {
-                    "activity_type": "food",
-                    "activity_name": "Meat consumption",
-                    "carbon_footprint": 6.1,
-                    "category": "diet",
-                    "description": "Beef/pork meals"
-                },
-                {
-                    "activity_type": "food",
-                    "activity_name": "Plant-based meal",
-                    "carbon_footprint": 1.8,
-                    "category": "diet", 
-                    "description": "Vegetarian/vegan meals"
-                },
-                {
-                    "activity_type": "waste",
-                    "activity_name": "Recycling",
-                    "carbon_footprint": -2.1,
-                    "category": "sustainability",
-                    "description": "Waste recycling activities"
-                }
-            ]
-            
-            # Generate activities for the time period
-            current_date = start_date
-            while current_date <= end_date:
-                # Add 2-4 activities per day
-                import random
-                daily_activities = random.sample(sample_activities, random.randint(2, 4))
+
+            # Demo/admin users get generated sample activities for UX demos
+            if _is_demo_user(user_id):
+                activities: List[Dict[str, Any]] = []
                 
-                for idx, activity in enumerate(daily_activities):
-                    activity_record = {
-                        "activity_id": f"{user_id}_{current_date.strftime('%Y%m%d')}_{idx}",
-                        "user_id": user_id,
-                        "timestamp": current_date.isoformat(),
-                        "date": current_date.strftime('%Y-%m-%d'),
-                        **activity
+                # Sample activity types and their carbon impact (demo only)
+                sample_activities = [
+                    {
+                        "activity_type": "transportation",
+                        "activity_name": "Drive to work",
+                        "carbon_footprint": 12.5,
+                        "category": "commute",
+                        "description": "Daily commute by car"
+                    },
+                    {
+                        "activity_type": "transportation",
+                        "activity_name": "Public transport",
+                        "carbon_footprint": 3.2,
+                        "category": "commute",
+                        "description": "Bus/metro commute"
+                    },
+                    {
+                        "activity_type": "energy",
+                        "activity_name": "Home electricity",
+                        "carbon_footprint": 8.7,
+                        "category": "utilities",
+                        "description": "Daily electricity usage"
+                    },
+                    {
+                        "activity_type": "food",
+                        "activity_name": "Meat consumption",
+                        "carbon_footprint": 6.1,
+                        "category": "diet",
+                        "description": "Beef/pork meals"
+                    },
+                    {
+                        "activity_type": "food",
+                        "activity_name": "Plant-based meal",
+                        "carbon_footprint": 1.8,
+                        "category": "diet",
+                        "description": "Vegetarian/vegan meals"
+                    },
+                    {
+                        "activity_type": "waste",
+                        "activity_name": "Recycling",
+                        "carbon_footprint": -2.1,
+                        "category": "sustainability",
+                        "description": "Waste recycling activities"
                     }
-                    activities.append(activity_record)
-                    
-                current_date += timedelta(days=1)
-                
-            logger.info(f"Generated {len(activities)} activities for user {user_id}")
+                ]
+
+                current_date = start_date
+                import random
+                while current_date <= end_date:
+                    daily_activities = random.sample(sample_activities, random.randint(2, 4))
+                    for idx, activity in enumerate(daily_activities):
+                        activity_record = {
+                            "activity_id": f"{user_id}_{current_date.strftime('%Y%m%d')}_{idx}",
+                            "user_id": user_id,
+                            "timestamp": current_date.isoformat(),
+                            "date": current_date.strftime('%Y-%m-%d'),
+                            **activity
+                        }
+                        activities.append(activity_record)
+                    current_date += timedelta(days=1)
+
+                logger.info(f"Generated {len(activities)} demo activities for user {user_id}")
+                return activities
+
+            # For real users, derive activities from stored emissions within date range
+            start_iso = start_date.isoformat()
+            end_iso = end_date.isoformat()
+            emissions = await dynamodb_service.get_user_emissions(user_id, start_iso, end_iso, limit=1000)
+
+            if not emissions:
+                return []
+
+            activities: List[Dict[str, Any]] = []
+            for idx, emission in enumerate(emissions):
+                # Map emission record to an activity-like structure
+                ts = emission.get("timestamp") or emission.get("created_at") or datetime.utcnow().isoformat()
+                date_str = emission.get("date") or (ts[:10] if isinstance(ts, str) else datetime.utcnow().strftime("%Y-%m-%d"))
+                activity_record = {
+                    "activity_id": emission.get("entry_id") or f"{user_id}_{idx}",
+                    "user_id": user_id,
+                    "timestamp": ts,
+                    "date": date_str,
+                    "activity_type": emission.get("category", "other"),
+                    "activity_name": emission.get("activity", "unknown"),
+                    "category": emission.get("category", "other"),
+                    "carbon_footprint": float(emission.get("co2_equivalent", 0) or 0),
+                    "description": emission.get("description", ""),
+                    # Fields used by RecommendationEngine
+                    "co2_equivalent": float(emission.get("co2_equivalent", 0) or 0),
+                    "activity": emission.get("activity", "unknown"),
+                }
+                activities.append(activity_record)
+
+            logger.info(f"Derived {len(activities)} activities from emissions for user {user_id}")
             return activities
             
         except Exception as e:

@@ -53,10 +53,10 @@ class PasswordConfirm(BaseModel):
 class AuthConfig:
     def __init__(self):
         # AWS Cognito configuration (use environment variables in production)
-        self.user_pool_id = os.getenv("COGNITO_USER_POOL_ID", "us-east-1_XXXXXXXXX")
+        self.user_pool_id = os.getenv("COGNITO_USER_POOL_ID", "eu-central-1_XXXXXXXXX")
         self.client_id = os.getenv("COGNITO_CLIENT_ID", "your_client_id_here")
         self.client_secret = os.getenv("COGNITO_CLIENT_SECRET", "your_client_secret_here")
-        self.region = os.getenv("AWS_REGION", "us-east-1")
+        self.region = os.getenv("AWS_REGION", "eu-central-1")
         
         # JWT configuration
         self.jwt_secret = os.getenv("JWT_SECRET_KEY", "your_super_secret_jwt_key_change_in_production")

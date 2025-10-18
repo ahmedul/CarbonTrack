@@ -16,7 +16,7 @@ def setup_test_env():
     # Set fake AWS credentials for testing
     os.environ["AWS_ACCESS_KEY_ID"] = "fake-test-key-id"
     os.environ["AWS_SECRET_ACCESS_KEY"] = "fake-test-secret-key"
-    os.environ["AWS_DEFAULT_REGION"] = "us-east-1"
+    os.environ["AWS_DEFAULT_REGION"] = "eu-central-1"
     os.environ["COGNITO_USER_POOL_ID"] = "fake-pool-id" 
     os.environ["COGNITO_CLIENT_ID"] = "fake-client-id"
     os.environ["TESTING"] = "true"

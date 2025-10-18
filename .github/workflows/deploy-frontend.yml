@@ -1,0 +1,94 @@
+name: Deploy Frontend to S3
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment (prod or staging)"
+        required: true
+        default: prod
+  push:
+    branches:
+      - main
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/deploy-frontend.yml'
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  # Default production bucket (S3 Website in us-east-1 based on your URL)
+  PROD_BUCKET: carbontrack-frontend-production
+  STAGING_BUCKET: carbontrack-frontend-staging
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        if: ${{ secrets.AWS_ROLE_TO_ASSUME != '' }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Configure AWS credentials (Access Keys fallback)
+        if: ${{ secrets.AWS_ROLE_TO_ASSUME == '' }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Determine target bucket
+        id: bucket
+        shell: bash
+        run: |
+          if [ "${{ github.event.inputs.environment }}" = "staging" ]; then
+            echo "bucket=${STAGING_BUCKET}" >> $GITHUB_OUTPUT
+          else
+            echo "bucket=${PROD_BUCKET}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Show target
+        run: echo "Deploying to bucket ${{ steps.bucket.outputs.bucket }} in $AWS_REGION"
+
+      - name: Upload static site
+        run: |
+          # Sync the frontend directory to S3 bucket root
+          aws s3 sync frontend s3://${{ steps.bucket.outputs.bucket }} \
+            --delete \
+            --cache-control max-age=300,public \
+            --exclude "*.map"
+
+      - name: Set long cache headers for assets
+        run: |
+          # Apply longer cache for known static assets
+          aws s3 cp s3://${{ steps.bucket.outputs.bucket }}/ s3://${{ steps.bucket.outputs.bucket }}/ \
+            --recursive \
+            --exclude "*" --include "*.js" --include "*.css" --metadata-directive REPLACE \
+            --content-type "text/javascript" --cache-control "public, max-age=31536000, immutable"
+          aws s3 cp s3://${{ steps.bucket.outputs.bucket }}/ s3://${{ steps.bucket.outputs.bucket }}/ \
+            --recursive \
+            --exclude "*" --include "*.css" --metadata-directive REPLACE \
+            --content-type "text/css" --cache-control "public, max-age=31536000, immutable"
+
+      - name: Set index.html cache
+        run: |
+          if aws s3 ls s3://${{ steps.bucket.outputs.bucket }}/index.html > /dev/null; then
+            aws s3 cp s3://${{ steps.bucket.outputs.bucket }}/index.html s3://${{ steps.bucket.outputs.bucket }}/index.html \
+              --metadata-directive REPLACE \
+              --content-type "text/html; charset=utf-8" \
+              --cache-control "no-cache, no-store, must-revalidate"
+          fi
+
+      - name: CloudFront invalidation (optional)
+        if: ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID != '' }}
+        run: |
+          aws cloudfront create-invalidation --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} --paths "/*"
