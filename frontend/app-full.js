@@ -56,9 +56,9 @@ const app = createApp({
             
             // Data
             emissions: [],
-            totalEmissions: 245.8,
-            monthlyEmissions: 34.2,
-            goalProgress: 68,
+            totalEmissions: 0,
+            monthlyEmissions: 0,
+            goalProgress: 0,
             chart: null,
             
             // Activity options for better user experience
@@ -455,17 +455,6 @@ const app = createApp({
         },
 
         // Data loading methods
-        loadUserData() {
-            console.log('Loading user profile data');
-            // Simulate API call with demo data
-            this.userProfile = {
-                user_id: 'demo-user',
-                email: 'demo@carbontrack.dev',
-                full_name: 'Demo User',
-                carbon_budget: 500,
-                role: 'admin'
-            };
-        },
         
         async loadEmissions() {
             console.log('Loading emissions data from API');
