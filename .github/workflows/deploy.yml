@@ -90,6 +90,9 @@ jobs:
         # Replace localhost API URLs with production URLs
         sed -i 's|http://localhost:8000|${{ secrets.PRODUCTION_API_URL }}|g' dist/index.html
         sed -i 's|http://127.0.0.1:8000|${{ secrets.PRODUCTION_API_URL }}|g' dist/index.html
+
+        # Cache-bust app-full.js so browsers fetch the fresh build
+        sed -i 's|app-full.js|app-full.js?v=${{ github.sha }}|g' dist/index.html
         
     - name: Upload frontend artifacts
       uses: actions/upload-artifact@v4
