@@ -1,0 +1,38 @@
+name: "Guard: No direct pushes to main"
+
+on:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  enforce:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check if commit is from merged PR into main
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const sha = context.sha;
+
+            // Find PRs associated with this commit
+            const resp = await github.request('GET /repos/{owner}/{repo}/commits/{commit_sha}/pulls', {
+              owner,
+              repo,
+              commit_sha: sha,
+              mediaType: { previews: ['groot'] },
+            });
+
+            core.info(`Found ${resp.data.length} PR(s) associated with commit ${sha}`);
+            const mergedIntoMain = resp.data.some(pr => pr.merged_at && pr.base && pr.base.ref === 'main');
+
+            if (mergedIntoMain) {
+              core.info('Commit originated from a merged PR into main. Guard passed.');
+            } else {
+              core.setFailed('Direct push to main detected. Please open a Pull Request and merge into main.');
+            }
