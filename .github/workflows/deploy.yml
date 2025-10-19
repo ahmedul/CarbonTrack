@@ -3,6 +3,11 @@ name: Deploy CarbonTrack to Production
 on:
   push:
     branches: [ main, production ]
+    # Only trigger this workflow for backend/infrastructure changes (frontend has its own deploy workflow)
+    paths:
+      - 'backend/**'
+      - 'infra/**'
+      - '.github/workflows/deploy.yml'
   pull_request:
     branches: [ main ]
   workflow_dispatch:  # Manual deployment trigger

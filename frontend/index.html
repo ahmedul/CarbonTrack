@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CarbonTrack - Track Your Carbon Footprint</title>
+    <link rel="icon" type="image/svg+xml" href="./assets/logo-mark.svg" />
     
     <!-- Vue.js 3 CDN -->
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
@@ -200,8 +201,8 @@
             <div class="container mx-auto px-6 relative z-10">
                 <div class="flex justify-between items-center h-20">
                     <div class="flex items-center space-x-3 cursor-pointer" @click="navigateToHome()">
-                        <div class="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center pulse-dot">
-                            <span class="text-2xl">🌍</span>
+                        <div class="w-10 h-10 rounded-xl overflow-hidden ring-2 ring-white/30">
+                            <img src="./assets/logo-mark.svg" alt="CarbonTrack logo" class="w-10 h-10"/>
                         </div>
                         <div>
                             <h1 class="text-2xl font-bold tracking-tight hover:text-blue-100 transition-colors">CarbonTrack</h1>
