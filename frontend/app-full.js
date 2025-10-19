@@ -16,10 +16,12 @@ const app = createApp({
             currentView: 'home',
             isAuthenticated: false,
             authToken: null,
-            // Use localhost for development, production URL for deployment
-            apiBase: window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
-                ? 'http://localhost:8000' 
-                : 'https://nlkyarlri3.execute-api.eu-central-1.amazonaws.com/prod',
+            // API base selection: allow runtime override via window.API_BASE_URL; fallback to localhost in dev, prod URL otherwise
+            apiBase: (window.API_BASE_URL && typeof window.API_BASE_URL === 'string')
+                ? window.API_BASE_URL
+                : (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+                    ? 'http://localhost:8000'
+                    : 'https://nlkyarlri3.execute-api.eu-central-1.amazonaws.com/prod'),
             
             // User data
             userProfile: {
@@ -260,7 +262,6 @@ const app = createApp({
                     }
                 });
                 if (resp && resp.data) {
-                    // Normalize profile from API
                     const p = resp.data;
                     this.userProfile = {
                         user_id: p.user_id || p.userId || '',
@@ -274,11 +275,19 @@ const app = createApp({
                 }
                 return false;
             } catch (e) {
-                console.warn('Token validation failed; clearing session.', e?.response?.status);
-                localStorage.removeItem('carbontrack_token');
-                this.authToken = null;
-                this.isAuthenticated = false;
-                return false;
+                const status = e?.response?.status;
+                // Only log out on actual auth failures
+                if (status === 401 || status === 403) {
+                    console.warn('Auth invalid; clearing session.', status);
+                    localStorage.removeItem('carbontrack_token');
+                    this.authToken = null;
+                    this.isAuthenticated = false;
+                    return false;
+                }
+                // Network error or API down; keep session and continue with empty data
+                console.warn('Profile check unreachable; keeping session.', status);
+                this.isAuthenticated = true;
+                return true;
             }
         },
         // Activity selection helper
@@ -655,7 +664,7 @@ const app = createApp({
                 }
             } catch (error) {
                 console.error('Error saving emission to API:', error);
-                console.log('📡 API not available, adding locally');
+                console.log('📡 API not available, adding locally (session preserved)');
                 
                 const emissionData = {
                     category: this.emissionForm.category,

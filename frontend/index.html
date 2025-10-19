@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CarbonTrack - Track Your Carbon Footprint</title>
     <link rel="icon" type="image/svg+xml" href="./assets/logo-mark.svg" />
+        <script>
+            // Optional runtime override; CI may inject this during deploy
+            window.API_BASE_URL = window.API_BASE_URL || undefined;
+        </script>
     
     <!-- Vue.js 3 CDN -->
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
