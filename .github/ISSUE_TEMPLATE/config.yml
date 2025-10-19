@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question / Support
+    url: https://github.com/ahmedul/CarbonTrack/discussions
+    about: Please use Discussions for Q&A and general support.
