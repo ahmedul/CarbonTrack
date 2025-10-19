@@ -14,15 +14,19 @@ on:
       - 'frontend/**'
       - '.github/workflows/deploy-frontend.yml'
 
+        # Expose selected secrets via env so we can use them in conditions
+        AWS_ROLE_TO_ASSUME: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+        CLOUDFRONT_DISTRIBUTION_ID: ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}
+        PRODUCTION_API_URL: ${{ secrets.PRODUCTION_API_URL }}
 permissions:
-  id-token: write
+              if: ${{ env.AWS_ROLE_TO_ASSUME != '' }}
   contents: read
 
-env:
+                role-to-assume: ${{ env.AWS_ROLE_TO_ASSUME }}
   AWS_REGION: us-east-1
   # Default production bucket (S3 Website in us-east-1 based on your URL)
   PROD_BUCKET: carbontrack-frontend-production
-  STAGING_BUCKET: carbontrack-frontend-staging
+              if: ${{ env.AWS_ROLE_TO_ASSUME == '' }}
 
 jobs:
   deploy:
@@ -38,9 +42,9 @@ jobs:
           cp -r frontend/* dist/
           
           # Replace localhost API URLs with production URL if provided
-          if [ -n "${{ secrets.PRODUCTION_API_URL }}" ]; then
-            sed -i 's|http://localhost:8000|${{ secrets.PRODUCTION_API_URL }}|g' dist/index.html || true
-            sed -i 's|http://127.0.0.1:8000|${{ secrets.PRODUCTION_API_URL }}|g' dist/index.html || true
+            if [ -n "$PRODUCTION_API_URL" ]; then
+              sed -i "s|http://localhost:8000|$PRODUCTION_API_URL|g" dist/index.html || true
+              sed -i "s|http://127.0.0.1:8000|$PRODUCTION_API_URL|g" dist/index.html || true
           fi
           
           # Cache-bust app-full.js reference
@@ -89,6 +93,6 @@ jobs:
             --cache-control "no-cache, no-store, must-revalidate"
 
       - name: CloudFront invalidation (optional)
-        if: ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID != '' }}
+        if: ${{ env.CLOUDFRONT_DISTRIBUTION_ID != '' }}
         run: |
-          aws cloudfront create-invalidation --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} --paths "/*"
+          aws cloudfront create-invalidation --distribution-id $CLOUDFRONT_DISTRIBUTION_ID --paths "/*"
