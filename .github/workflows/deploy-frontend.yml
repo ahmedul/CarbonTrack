@@ -51,10 +51,11 @@ jobs:
           mkdir -p dist
           cp -r frontend/* dist/
           
-          # Replace localhost API URLs with production URL if provided
+          # Inject API base URL at runtime if provided (robust to minification)
           if [ -n "$PRODUCTION_API_URL" ]; then
-            sed -i "s|http://localhost:8000|$PRODUCTION_API_URL|g" dist/index.html || true
-            sed -i "s|http://127.0.0.1:8000|$PRODUCTION_API_URL|g" dist/index.html || true
+            echo "Injecting API base URL into index.html"
+            # Insert a small script before </head> that sets window.API_BASE_URL
+            sed -i "s|</head>|<script>window.API_BASE_URL=\"$PRODUCTION_API_URL\";<\/script></head>|" dist/index.html || true
           fi
           
           # Cache-bust app-full.js reference
