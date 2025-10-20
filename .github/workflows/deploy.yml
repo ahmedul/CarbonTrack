@@ -8,6 +8,8 @@ on:
       - 'backend/**'
       - 'infra/**'
       - '.github/workflows/deploy.yml'
+  push:
+    branches: [ main, production ]
   workflow_dispatch:  # Manual deployment trigger
     inputs:
       environment:
@@ -29,7 +31,9 @@ env:
 jobs:
   test:
     runs-on: ubuntu-latest
+    # Run on push, merged PR, or manual dispatch
     if: |
+      github.event_name == 'push' ||
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true)
     
@@ -171,6 +175,8 @@ jobs:
     needs: [build-frontend, build-backend]
     if: |
       github.event_name == 'workflow_dispatch' ||
+      startsWith(github.ref, 'refs/heads/main') ||
+      startsWith(github.ref, 'refs/heads/production') ||
       (github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true && (github.event.pull_request.base.ref == 'main' || github.event.pull_request.base.ref == 'production'))
     
     steps:
