@@ -696,8 +696,16 @@ const app = createApp({
                     this.showNotification('Emission added locally (API unavailable)', 'info');
                 }
             } catch (error) {
-                console.error('Error saving emission to API:', error);
-                console.log('📡 API not available, adding locally (session preserved)');
+                const status = error?.response?.status;
+                const detail = error?.response?.data?.detail || error?.message || 'Unknown error';
+                console.error('Error saving emission to API:', status, detail, error);
+                if (status === 401 || status === 403) {
+                    this.showNotification('Authorization failed while saving. Please log in again or use a valid session.', 'error');
+                } else if (status) {
+                    this.showNotification(`Save failed (${status}): ${detail}`, 'error');
+                } else {
+                    console.log('📡 API not available, adding locally (session preserved)');
+                }
                 
                 const emissionData = {
                     category: this.emissionForm.category,
@@ -709,7 +717,9 @@ const app = createApp({
                 };
                 
                 this.addEmissionLocally(emissionData);
-                this.showNotification('Emission added locally (API unavailable)', 'info');
+                if (!status) {
+                    this.showNotification('Emission added locally (API unavailable)', 'info');
+                }
             } finally {
                 // Reset form
                 this.emissionForm = {
