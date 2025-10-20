@@ -98,9 +98,19 @@ jobs:
         
     - name: Configure production API URLs
       run: |
-        # Replace localhost API URLs with production URLs
-        sed -i 's|http://localhost:8000|${{ secrets.PRODUCTION_API_URL }}|g' dist/index.html
-        sed -i 's|http://127.0.0.1:8000|${{ secrets.PRODUCTION_API_URL }}|g' dist/index.html
+        # Resolve API URL from Actions Variable first, then Secret fallback
+        API_URL="${{ vars.PRODUCTION_API_URL }}"
+        if [ -z "$API_URL" ]; then
+          API_URL="${{ secrets.PRODUCTION_API_URL }}"
+        fi
+
+        # Inject window.API_BASE_URL into index.html if provided
+        if [ -n "$API_URL" ]; then
+          echo "Injecting API base URL into index.html: $API_URL"
+          sed -i "s|</head>|<script>window.API_BASE_URL=\"$API_URL\";<\/script></head>|" dist/index.html || true
+        else
+          echo "No PRODUCTION_API_URL provided via Actions Variable or Secret; leaving default runtime behavior."
+        fi
 
         # Cache-bust app-full.js so browsers fetch the fresh build
         sed -i 's|app-full.js|app-full.js?v=${{ github.sha }}|g' dist/index.html
