@@ -16,6 +16,7 @@ const app = createApp({
             currentView: 'home',
             isAuthenticated: false,
             authToken: null,
+            isDemo: false,
             // API base selection: allow runtime override via window.API_BASE_URL; fallback to localhost in dev, prod URL otherwise
             apiBase: (window.API_BASE_URL && typeof window.API_BASE_URL === 'string')
                 ? window.API_BASE_URL
@@ -232,6 +233,27 @@ const app = createApp({
         const token = localStorage.getItem('carbontrack_token');
         if (token) {
             this.authToken = token;
+            // Treat demo tokens specially: keep session without backend validation
+            if (this.isDemoToken(token)) {
+                this.isDemo = true;
+                this.isAuthenticated = true;
+                this.currentView = 'dashboard';
+                // Seed a basic demo profile if missing
+                if (!this.userProfile.email) {
+                    this.userProfile = {
+                        user_id: 'demo-user',
+                        email: 'demo@carbontrack.dev',
+                        full_name: 'Demo User',
+                        carbon_budget: 500,
+                        role: 'user'
+                    };
+                }
+                // Load UI data lazily
+                this.loadEmissions();
+                this.loadRecommendations();
+                this.loadRecommendationStats();
+                this.initializeChart();
+            } else {
             // Validate the token with backend before loading data
             const valid = await this.validateSession();
             if (valid) {
@@ -246,6 +268,7 @@ const app = createApp({
                 // Invalid/expired token — clear state and show login
                 this.logout();
             }
+            }
         }
         this.initializeChart();
     },
@@ -254,15 +277,21 @@ const app = createApp({
         // Validate session by calling profile; clears bad tokens to avoid 401 spam
         async validateSession() {
             if (!this.authToken) return false;
+            if (this.isDemoToken(this.authToken)) {
+                // Skip backend validation for demo tokens
+                this.isDemo = true;
+                this.isAuthenticated = true;
+                return true;
+            }
             try {
-                const resp = await axios.get(`${this.apiBase}/api/profile`, {
+                const resp = await axios.get(`${this.apiBase}/api/v1/auth/me`, {
                     headers: {
                         'Authorization': `Bearer ${this.authToken}`,
                         'Content-Type': 'application/json'
                     }
                 });
                 if (resp && resp.data) {
-                    const p = resp.data;
+                    const p = resp.data.user || resp.data;
                     this.userProfile = {
                         user_id: p.user_id || p.userId || '',
                         email: p.email || '',
@@ -289,6 +318,10 @@ const app = createApp({
                 this.isAuthenticated = true;
                 return true;
             }
+        },
+
+        isDemoToken(token) {
+            return typeof token === 'string' && token.startsWith('demo-');
         },
         // Activity selection helper
         selectActivity(option) {
@@ -327,7 +360,7 @@ const app = createApp({
                     password: this.loginForm.password
                 };
                 
-                const response = await axios.post(`${this.apiBase}/api/login`, loginData, {
+                const response = await axios.post(`${this.apiBase}/api/v1/auth/login`, loginData, {
                     headers: {
                         'Content-Type': 'application/json'
                     }
@@ -1558,7 +1591,7 @@ const app = createApp({
                 };
                 
                 // Make API call for registration
-                const response = await axios.post(`${this.apiBase}/api/register`, registrationData, {
+                const response = await axios.post(`${this.apiBase}/api/v1/auth/register`, registrationData, {
                     headers: {
                         'Content-Type': 'application/json'
                     }
