@@ -13,27 +13,30 @@ on:
     paths:
       - 'frontend/**'
       - '.github/workflows/deploy-frontend.yml'
+  push:
+    branches: [ main ]
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/deploy-frontend.yml'
 
-        # Expose selected secrets via env so we can use them in conditions
-        AWS_ROLE_TO_ASSUME: ${{ secrets.AWS_ROLE_TO_ASSUME }}
-        CLOUDFRONT_DISTRIBUTION_ID: ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}
-        PRODUCTION_API_URL: ${{ secrets.PRODUCTION_API_URL }}
 permissions:
-              if: ${{ env.AWS_ROLE_TO_ASSUME != '' }}
+  id-token: write
   contents: read
 
-                role-to-assume: ${{ env.AWS_ROLE_TO_ASSUME }}
+env:
   AWS_REGION: us-east-1
-  # Default production bucket (S3 Website in us-east-1 based on your URL)
   PROD_BUCKET: carbontrack-frontend-production
-              if: ${{ env.AWS_ROLE_TO_ASSUME == '' }}
+  STAGING_BUCKET: carbontrack-frontend-staging
+  AWS_ROLE_TO_ASSUME: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+  CLOUDFRONT_DISTRIBUTION_ID: ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}
+  PRODUCTION_API_URL: ${{ secrets.PRODUCTION_API_URL }}
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    # Run only when manually dispatched OR when a PR into main was merged
     if: |
       github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'push' ||
       (github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main')
     steps:
       - name: Checkout
@@ -48,23 +51,23 @@ jobs:
           cp -r frontend/* dist/
           
           # Replace localhost API URLs with production URL if provided
-            if [ -n "$PRODUCTION_API_URL" ]; then
-              sed -i "s|http://localhost:8000|$PRODUCTION_API_URL|g" dist/index.html || true
-              sed -i "s|http://127.0.0.1:8000|$PRODUCTION_API_URL|g" dist/index.html || true
+          if [ -n "$PRODUCTION_API_URL" ]; then
+            sed -i "s|http://localhost:8000|$PRODUCTION_API_URL|g" dist/index.html || true
+            sed -i "s|http://127.0.0.1:8000|$PRODUCTION_API_URL|g" dist/index.html || true
           fi
           
           # Cache-bust app-full.js reference
           sed -i 's|app-full.js|app-full.js?v=${{ github.sha }}|g' dist/index.html || true
 
       - name: Configure AWS credentials (OIDC)
-        if: ${{ secrets.AWS_ROLE_TO_ASSUME != '' }}
+        if: ${{ env.AWS_ROLE_TO_ASSUME != '' }}
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          role-to-assume: ${{ env.AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Configure AWS credentials (Access Keys fallback)
-        if: ${{ secrets.AWS_ROLE_TO_ASSUME == '' }}
+        if: ${{ env.AWS_ROLE_TO_ASSUME == '' }}
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -75,7 +78,11 @@ jobs:
         id: bucket
         shell: bash
         run: |
-          if [ "${{ github.event.inputs.environment }}" = "staging" ]; then
+          ENVIRONMENT="prod"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.event.inputs.environment }}" = "staging" ]; then
+            ENVIRONMENT="staging"
+          fi
+          if [ "$ENVIRONMENT" = "staging" ]; then
             echo "bucket=${STAGING_BUCKET}" >> $GITHUB_OUTPUT
           else
             echo "bucket=${PROD_BUCKET}" >> $GITHUB_OUTPUT
@@ -86,7 +93,6 @@ jobs:
 
       - name: Upload static site
         run: |
-          # Sync the frontend directory to S3 bucket root
           # 1) Long cache for non-HTML assets
           aws s3 sync dist s3://${{ steps.bucket.outputs.bucket }} \
             --delete \
