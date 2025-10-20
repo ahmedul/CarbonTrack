@@ -29,7 +29,6 @@ env:
   STAGING_BUCKET: carbontrack-frontend-staging
   AWS_ROLE_TO_ASSUME: ${{ secrets.AWS_ROLE_TO_ASSUME }}
   CLOUDFRONT_DISTRIBUTION_ID: ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}
-  PRODUCTION_API_URL: ${{ secrets.PRODUCTION_API_URL }}
 
 jobs:
   deploy:
@@ -51,11 +50,19 @@ jobs:
           mkdir -p dist
           cp -r frontend/* dist/
           
+          # Resolve API URL from Actions Variable first, then Secret fallback
+          API_URL="${{ vars.PRODUCTION_API_URL }}"
+          if [ -z "$API_URL" ]; then
+            API_URL="${{ secrets.PRODUCTION_API_URL }}"
+          fi
+
           # Inject API base URL at runtime if provided (robust to minification)
-          if [ -n "$PRODUCTION_API_URL" ]; then
-            echo "Injecting API base URL into index.html"
+          if [ -n "$API_URL" ]; then
+            echo "Injecting API base URL into index.html: $API_URL"
             # Insert a small script before </head> that sets window.API_BASE_URL
-            sed -i "s|</head>|<script>window.API_BASE_URL=\"$PRODUCTION_API_URL\";<\/script></head>|" dist/index.html || true
+            sed -i "s|</head>|<script>window.API_BASE_URL=\"$API_URL\";<\/script></head>|" dist/index.html || true
+          else
+            echo "No PRODUCTION_API_URL provided via Actions Variable or Secret; leaving default runtime behavior."
           fi
           
           # Cache-bust app-full.js reference

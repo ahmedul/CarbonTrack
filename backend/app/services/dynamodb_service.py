@@ -4,6 +4,7 @@ Handles all database operations for users, carbon data, goals, and achievements
 """
 
 import boto3
+import os
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 from decimal import Decimal
@@ -23,9 +24,13 @@ class DynamoDBService:
     """Service class for DynamoDB operations"""
     
     def __init__(self):
-        self.dynamodb = boto3.resource('dynamodb', region_name=settings.aws_region)
-        self.users_table = self.dynamodb.Table(settings.users_table)
-        self.entries_table = self.dynamodb.Table(settings.entries_table)
+    self.dynamodb = boto3.resource('dynamodb', region_name=settings.aws_region)
+    # Resolve table names from environment when available
+    users_table_name = os.getenv('USERS_TABLE') or settings.users_table
+    entries_table_name = os.getenv('ENTRIES_TABLE') or os.getenv('CARBON_DATA_TABLE') or settings.entries_table
+
+    self.users_table = self.dynamodb.Table(users_table_name)
+    self.entries_table = self.dynamodb.Table(entries_table_name)
         self.goals_table = self.dynamodb.Table(settings.goals_table)
         self.achievements_table = self.dynamodb.Table(settings.achievements_table)
     
