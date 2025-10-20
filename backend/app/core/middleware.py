@@ -15,17 +15,18 @@ security = HTTPBearer()
 
 
 def _is_mock_token(token: str) -> bool:
-    """Check if this is a mock token for development"""
+    """Check if this token should be treated as mock/demo (allowed in demo/prod too)."""
     return (
-        token.startswith("mock_") or 
-        token == "test_token" or
-        token == "mock_jwt_token" or
-        len(token) < 50  # Real JWT tokens are much longer
+        token.startswith("mock_") or
+        token.startswith("demo-") or
+        token.startswith("user-token-") or
+        token in {"test_token", "mock_jwt_token"} or
+        len(token or "") < 50  # Real JWT tokens are typically longer
     )
 
 
 def _handle_mock_authentication(token: str) -> Dict[str, Any]:
-    """Handle mock authentication for development"""
+    """Map mock/demo tokens to synthetic users for demo/testing flows."""
     if token == "mock_admin" or token == "mock_jwt_token":
         return {
             "user_id": "mock_admin_id",
@@ -34,6 +35,25 @@ def _handle_mock_authentication(token: str) -> Dict[str, Any]:
             "first_name": "Admin",
             "last_name": "User",
             "cognito:groups": ["admin", "user"]
+        }
+    elif token.startswith("demo-"):
+        return {
+            "user_id": "demo-user",
+            "email": "demo@carbontrack.dev",
+            "username": "demo@carbontrack.dev",
+            "first_name": "Demo",
+            "last_name": "User",
+            "cognito:groups": ["user"]
+        }
+    elif token.startswith("user-token-"):
+        uid = token.replace("user-token-", "") or "user"
+        return {
+            "user_id": f"user-{uid}",
+            "email": f"{uid}@carbontrack.dev",
+            "username": f"{uid}@carbontrack.dev",
+            "first_name": "User",
+            "last_name": "Token",
+            "cognito:groups": ["user"]
         }
     elif token.startswith("mock_"):
         user_id = token.replace("mock_", "")
@@ -95,8 +115,8 @@ def verify_token(token: str) -> Dict[str, Any]:
     """
     Verify JWT token - supports both mock and real tokens
     """
-    # Check if we're using mock authentication in development
-    if settings.debug and _is_mock_token(token):
+    # Always allow mock/demo tokens for our MVP flows
+    if _is_mock_token(token):
         return _handle_mock_authentication(token)
     
     # For non-mock tokens, try Cognito validation

@@ -21,13 +21,18 @@ app = FastAPI(
     openapi_url="/openapi.json"
 )
 
-# Add CORS middleware
+# Configure CORS with support for wildcard via env ALLOWED_ORIGINS="*"
+configured_origins = settings.allowed_origins or []
+is_wildcard = False
+if isinstance(configured_origins, list) and len(configured_origins) == 1 and configured_origins[0] == "*":
+    is_wildcard = True
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.allowed_origins,
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
-    allow_headers=["*"],
+    allow_origins=["*"] if is_wildcard else configured_origins,
+    allow_credentials=False if is_wildcard else True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allow_headers=["*"]
 )
 
 # Include API routes
