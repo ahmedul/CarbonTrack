@@ -1597,25 +1597,35 @@ const app = createApp({
                     }
                 });
                 
-                if (response.data && response.data.access_token) {
+                if (response && response.status >= 200 && response.status < 300) {
                     console.log('✅ Registration successful via API');
-                    this.showNotification(
-                        '🎉 Registration Successful! Your account request has been submitted for admin approval. You will be notified once approved.',
-                        'success'
-                    );
-                    // Switch to login view after 3 seconds
+                    const msg = (response.data && (response.data.message || response.data.status))
+                      ? `🎉 ${response.data.message || 'Registration successful.'}`
+                      : '🎉 Registration Successful! Your account request has been submitted for admin approval. You will be notified once approved.';
+                    this.showNotification(msg, 'success');
+                    // Switch to login view after a short delay
                     setTimeout(() => {
                         this.currentView = 'login';
                         this.loginForm.email = this.registerForm.email;
-                    }, 3000);
+                    }, 1500);
                 } else {
-                    console.log('❌ API registration failed, using local simulation');
+                    console.log('❌ API registration returned unexpected response, using local simulation');
                     this.handleLocalRegistration();
                 }
             } catch (error) {
                 console.error('Error during API registration:', error);
-                console.log('📡 API not available, using local simulation');
-                this.handleLocalRegistration();
+                const status = error?.response?.status;
+                if (status === 409) {
+                    this.showNotification('An account with this email already exists. Please log in or use a different email.', 'error');
+                    this.currentView = 'login';
+                    this.loginForm.email = this.registerForm.email;
+                } else if (status === 400) {
+                    const detail = error?.response?.data?.detail || 'Invalid input. Please check the form.';
+                    this.showNotification(detail, 'error');
+                } else {
+                    console.log('📡 API not available, using local simulation');
+                    this.handleLocalRegistration();
+                }
             } finally {
                 // Reset form but stay on registration page to see success
                 this.registerForm = {
