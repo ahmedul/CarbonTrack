@@ -228,9 +228,21 @@ jobs:
         
     - name: Deploy to Lambda
       run: |
+        # Update Lambda function code
         aws lambda update-function-code \
           --function-name carbontrack-api \
           --zip-file fileb://carbon-track-backend.zip
+        
+        # Wait for update to complete
+        aws lambda wait function-updated \
+          --function-name carbontrack-api
+        
+        # Update handler configuration
+        aws lambda update-function-configuration \
+          --function-name carbontrack-api \
+          --handler lambda_function.handler \
+          --timeout 30 \
+          --memory-size 512
 
   deploy-frontend:
     runs-on: ubuntu-latest
