@@ -272,12 +272,12 @@ class DynamoDBService:
         try:
             current_date = datetime.utcnow()
             
-            # Update total emissions and entry count
+            # Update total emissions and entry count - uses userId (camelCase) to match table
             self.users_table.update_item(
-                Key={'user_id': user_id},
+                Key={'userId': user_id},
                 UpdateExpression='ADD total_emissions :co2, entries_count :one SET last_active = :now',
                 ExpressionAttributeValues={
-                    ':co2': float(co2_amount),
+                    ':co2': co2_amount,  # Keep as Decimal for DynamoDB
                     ':one': 1,
                     ':now': current_date.isoformat()
                 }
