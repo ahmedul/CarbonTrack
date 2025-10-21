@@ -46,7 +46,7 @@ class DynamoDBService:
             # Use condition expression to prevent overwriting existing users
             self.users_table.put_item(
                 Item=item,
-                ConditionExpression='attribute_not_exists(user_id)',
+                ConditionExpression='attribute_not_exists(userId)',
                 ReturnValues='ALL_OLD'
             )
             
@@ -60,8 +60,8 @@ class DynamoDBService:
     async def get_user_profile(self, user_id: str) -> Optional[Dict[str, Any]]:
         """Get user profile by user_id"""
         try:
-            # Users table uses partition key user_id in schema
-            response = self.users_table.get_item(Key={'user_id': user_id})
+            # Users table uses partition key userId (camelCase) in schema
+            response = self.users_table.get_item(Key={'userId': user_id})
             return response.get('Item')
         except ClientError as e:
             print(f"Error getting user profile: {e}")
@@ -75,7 +75,7 @@ class DynamoDBService:
             expression_values = {}
             
             for key, value in updates.items():
-                if key != 'user_id':  # Don't update the partition key
+                if key != 'userId':  # Don't update the partition key
                     update_expression += f"{key} = :{key}, "
                     expression_values[f":{key}"] = value
             
@@ -84,7 +84,7 @@ class DynamoDBService:
             expression_values[':updated_at'] = datetime.utcnow().isoformat()
             
             self.users_table.update_item(
-                Key={'user_id': user_id},
+                Key={'userId': user_id},
                 UpdateExpression=update_expression,
                 ExpressionAttributeValues=expression_values
             )
@@ -131,9 +131,9 @@ class DynamoDBService:
     ) -> List[Dict[str, Any]]:
         """Get carbon emissions for a user with optional date filtering"""
         try:
-            # Build query parameters
+            # Build query parameters - entries table uses userId (camelCase) as partition key
             query_params = {
-                'KeyConditionExpression': Key('user_id').eq(user_id),
+                'KeyConditionExpression': Key('userId').eq(user_id),
                 'ScanIndexForward': False,  # Sort by timestamp descending (newest first)
                 'Limit': limit
             }
@@ -167,7 +167,7 @@ class DynamoDBService:
             expression_values = {}
             
             for key, value in updates.items():
-                if key not in ['user_id', 'timestamp']:  # Don't update keys
+                if key not in ['userId', 'timestamp']:  # Don't update keys
                     update_expression += f"{key} = :{key}, "
                     expression_values[f":{key}"] = value
             
@@ -176,7 +176,7 @@ class DynamoDBService:
             expression_values[':updated_at'] = datetime.utcnow().isoformat()
             
             self.entries_table.update_item(
-                Key={'user_id': user_id, 'timestamp': timestamp},
+                Key={'userId': user_id, 'timestamp': timestamp},
                 UpdateExpression=update_expression,
                 ExpressionAttributeValues=expression_values
             )
@@ -191,7 +191,7 @@ class DynamoDBService:
         """Delete a carbon emission entry"""
         try:
             self.entries_table.delete_item(
-                Key={'user_id': user_id, 'timestamp': timestamp}
+                Key={'userId': user_id, 'timestamp': timestamp}
             )
             return True
             

@@ -21,13 +21,13 @@ class CarbonEmissionModel:
 
     def to_dynamodb_item(self) -> Dict[str, Any]:
         item = {
-            # Use table's partition key naming (user_id)
-            'user_id': self.user_id,
+            # Use table's partition key naming (userId in camelCase to match existing DynamoDB table)
+            'userId': self.user_id,
             'entry_id': self.entry_id,
             'date': self.emission_date.isoformat(),
             'category': self.category,
             'activity': self.activity,
-            'amount': self.amount,  # Keep as Decimal for DynamoDB
+            'amount': float(self.amount),
             'unit': self.unit,
             'created_at': self.created_at.isoformat(),
             'updated_at': self.updated_at.isoformat()
@@ -35,9 +35,9 @@ class CarbonEmissionModel:
         if self.description:
             item['description'] = self.description
         if self.co2_equivalent:
-            item['co2_equivalent'] = self.co2_equivalent  # Keep as Decimal
+            item['co2_equivalent'] = float(self.co2_equivalent)
         if self.emission_factor:
-            item['emission_factor'] = self.emission_factor  # Keep as Decimal
+            item['emission_factor'] = float(self.emission_factor)
         return item
 
 @dataclass
@@ -54,6 +54,26 @@ class UserProfileModel:
     created_at: datetime = field(default_factory=datetime.utcnow)
     updated_at: datetime = field(default_factory=datetime.utcnow)
     last_active: datetime = field(default_factory=datetime.utcnow)
+    
+    def to_dynamodb_item(self) -> Dict[str, Any]:
+        """Convert to DynamoDB item format - uses userId (camelCase) to match table schema"""
+        item = {
+            'userId': self.user_id,
+            'email': self.email,
+            'full_name': self.full_name,
+            'preferred_units': self.preferred_units,
+            'total_emissions': float(self.total_emissions),
+            'current_month_emissions': float(self.current_month_emissions),
+            'entries_count': self.entries_count,
+            'created_at': self.created_at.isoformat(),
+            'updated_at': self.updated_at.isoformat(),
+            'last_active': self.last_active.isoformat()
+        }
+        if self.avatar_url:
+            item['avatar_url'] = self.avatar_url
+        if self.carbon_budget:
+            item['carbon_budget'] = float(self.carbon_budget)
+        return item
 
 @dataclass  
 class GoalModel:
