@@ -27,7 +27,7 @@ class CarbonEmissionModel:
             'date': self.emission_date.isoformat(),
             'category': self.category,
             'activity': self.activity,
-            'amount': float(self.amount),
+            'amount': self.amount,  # Keep as Decimal for DynamoDB
             'unit': self.unit,
             'created_at': self.created_at.isoformat(),
             'updated_at': self.updated_at.isoformat()
@@ -35,9 +35,9 @@ class CarbonEmissionModel:
         if self.description:
             item['description'] = self.description
         if self.co2_equivalent:
-            item['co2_equivalent'] = float(self.co2_equivalent)
+            item['co2_equivalent'] = self.co2_equivalent  # Keep as Decimal
         if self.emission_factor:
-            item['emission_factor'] = float(self.emission_factor)
+            item['emission_factor'] = self.emission_factor  # Keep as Decimal
         return item
 
 @dataclass
