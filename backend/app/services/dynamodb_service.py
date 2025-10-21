@@ -24,13 +24,13 @@ class DynamoDBService:
     """Service class for DynamoDB operations"""
     
     def __init__(self):
-    self.dynamodb = boto3.resource('dynamodb', region_name=settings.aws_region)
-    # Resolve table names from environment when available
-    users_table_name = os.getenv('USERS_TABLE') or settings.users_table
-    entries_table_name = os.getenv('ENTRIES_TABLE') or os.getenv('CARBON_DATA_TABLE') or settings.entries_table
+        self.dynamodb = boto3.resource('dynamodb', region_name=settings.aws_region)
+        # Resolve table names from environment when available
+        users_table_name = os.getenv('USERS_TABLE') or settings.users_table
+        entries_table_name = os.getenv('ENTRIES_TABLE') or os.getenv('CARBON_DATA_TABLE') or settings.entries_table
 
-    self.users_table = self.dynamodb.Table(users_table_name)
-    self.entries_table = self.dynamodb.Table(entries_table_name)
+        self.users_table = self.dynamodb.Table(users_table_name)
+        self.entries_table = self.dynamodb.Table(entries_table_name)
         self.goals_table = self.dynamodb.Table(settings.goals_table)
         self.achievements_table = self.dynamodb.Table(settings.achievements_table)
     
@@ -46,7 +46,7 @@ class DynamoDBService:
             # Use condition expression to prevent overwriting existing users
             self.users_table.put_item(
                 Item=item,
-                ConditionExpression='attribute_not_exists(userId)',
+                ConditionExpression='attribute_not_exists(user_id)',
                 ReturnValues='ALL_OLD'
             )
             
@@ -60,8 +60,8 @@ class DynamoDBService:
     async def get_user_profile(self, user_id: str) -> Optional[Dict[str, Any]]:
         """Get user profile by user_id"""
         try:
-            # Users table uses partition key userId in schema
-            response = self.users_table.get_item(Key={'userId': user_id})
+            # Users table uses partition key user_id in schema
+            response = self.users_table.get_item(Key={'user_id': user_id})
             return response.get('Item')
         except ClientError as e:
             print(f"Error getting user profile: {e}")
@@ -75,7 +75,7 @@ class DynamoDBService:
             expression_values = {}
             
             for key, value in updates.items():
-                if key != 'userId':  # Don't update the partition key
+                if key != 'user_id':  # Don't update the partition key
                     update_expression += f"{key} = :{key}, "
                     expression_values[f":{key}"] = value
             
@@ -84,7 +84,7 @@ class DynamoDBService:
             expression_values[':updated_at'] = datetime.utcnow().isoformat()
             
             self.users_table.update_item(
-                Key={'userId': user_id},
+                Key={'user_id': user_id},
                 UpdateExpression=update_expression,
                 ExpressionAttributeValues=expression_values
             )
@@ -133,7 +133,7 @@ class DynamoDBService:
         try:
             # Build query parameters
             query_params = {
-                'KeyConditionExpression': Key('userId').eq(user_id),
+                'KeyConditionExpression': Key('user_id').eq(user_id),
                 'ScanIndexForward': False,  # Sort by timestamp descending (newest first)
                 'Limit': limit
             }
@@ -176,7 +176,7 @@ class DynamoDBService:
             expression_values[':updated_at'] = datetime.utcnow().isoformat()
             
             self.entries_table.update_item(
-                Key={'userId': user_id, 'timestamp': timestamp},
+                Key={'user_id': user_id, 'timestamp': timestamp},
                 UpdateExpression=update_expression,
                 ExpressionAttributeValues=expression_values
             )
@@ -191,7 +191,7 @@ class DynamoDBService:
         """Delete a carbon emission entry"""
         try:
             self.entries_table.delete_item(
-                Key={'userId': user_id, 'timestamp': timestamp}
+                Key={'user_id': user_id, 'timestamp': timestamp}
             )
             return True
             
@@ -219,7 +219,7 @@ class DynamoDBService:
         """Get goals for a user"""
         try:
             query_params = {
-                'KeyConditionExpression': 'userId = :user_id',
+                'KeyConditionExpression': 'user_id = :user_id',
                 'ExpressionAttributeValues': {':user_id': user_id}
             }
             
@@ -254,7 +254,7 @@ class DynamoDBService:
         """Get achievements for a user"""
         try:
             response = self.achievements_table.query(
-                KeyConditionExpression='userId = :user_id',
+                KeyConditionExpression='user_id = :user_id',
                 ExpressionAttributeValues={':user_id': user_id}
             )
             return response.get('Items', [])
@@ -274,7 +274,7 @@ class DynamoDBService:
             
             # Update total emissions and entry count
             self.users_table.update_item(
-                Key={'userId': user_id},
+                Key={'user_id': user_id},
                 UpdateExpression='ADD total_emissions :co2, entries_count :one SET last_active = :now',
                 ExpressionAttributeValues={
                     ':co2': float(co2_amount),
