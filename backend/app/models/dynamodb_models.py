@@ -27,7 +27,7 @@ class CarbonEmissionModel:
             'date': self.emission_date.isoformat(),
             'category': self.category,
             'activity': self.activity,
-            'amount': float(self.amount),
+            'amount': self.amount,  # Keep as Decimal for DynamoDB
             'unit': self.unit,
             'created_at': self.created_at.isoformat(),
             'updated_at': self.updated_at.isoformat()
@@ -35,9 +35,9 @@ class CarbonEmissionModel:
         if self.description:
             item['description'] = self.description
         if self.co2_equivalent:
-            item['co2_equivalent'] = float(self.co2_equivalent)
+            item['co2_equivalent'] = self.co2_equivalent  # Keep as Decimal
         if self.emission_factor:
-            item['emission_factor'] = float(self.emission_factor)
+            item['emission_factor'] = self.emission_factor  # Keep as Decimal
         return item
 
 @dataclass
@@ -62,8 +62,8 @@ class UserProfileModel:
             'email': self.email,
             'full_name': self.full_name,
             'preferred_units': self.preferred_units,
-            'total_emissions': float(self.total_emissions),
-            'current_month_emissions': float(self.current_month_emissions),
+            'total_emissions': self.total_emissions,  # Keep as Decimal
+            'current_month_emissions': self.current_month_emissions,  # Keep as Decimal
             'entries_count': self.entries_count,
             'created_at': self.created_at.isoformat(),
             'updated_at': self.updated_at.isoformat(),
@@ -72,7 +72,7 @@ class UserProfileModel:
         if self.avatar_url:
             item['avatar_url'] = self.avatar_url
         if self.carbon_budget:
-            item['carbon_budget'] = float(self.carbon_budget)
+            item['carbon_budget'] = self.carbon_budget  # Keep as Decimal
         return item
 
 @dataclass  
