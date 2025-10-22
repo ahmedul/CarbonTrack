@@ -7,8 +7,9 @@
     <link rel="icon" type="image/svg+xml" href="./assets/logo-mark.svg" />
             <!-- build: marker 2025-10-20 -->
             <script>
-            // Optional runtime override; CI may inject this during deploy
-            window.API_BASE_URL = window.API_BASE_URL || undefined;
+            // Runtime API URL configuration - hardcoded for production
+            window.API_BASE_URL = 'https://nlkyarlri3.execute-api.eu-central-1.amazonaws.com/prod';
+            console.log('🔧 API Base URL configured:', window.API_BASE_URL);
         </script>
     
     <!-- Vue.js 3 CDN -->
