@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     # Cognito configuration (EU-CENTRAL-1)
     cognito_user_pool_id: str = "eu-central-1_liszdknXy"
     cognito_client_id: str = "3rg58gvke8v6afmfng7o4fk0r1"
-    cognito_client_secret: str = ""  # No secret for this client
+    cognito_client_secret: str = "192sju21i9d0k9jhfn6g68cco7ib2vnu047583kbkos8f9c6bd8h"
     
     # DynamoDB tables
     users_table: str = "carbontrack-users"
