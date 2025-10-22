@@ -90,9 +90,22 @@ const app = createApp({
     async mounted() {
         // Check for stored authentication
         const token = localStorage.getItem('carbontrack_token');
+        const storedUser = localStorage.getItem('carbontrack_user');
+        
         if (token) {
             this.authToken = token;
             this.isAuthenticated = true;
+            
+            // Restore user profile from localStorage
+            if (storedUser) {
+                try {
+                    this.userProfile = JSON.parse(storedUser);
+                    console.log('Restored user profile:', this.userProfile);
+                } catch (e) {
+                    console.error('Failed to parse stored user:', e);
+                }
+            }
+            
             await this.loadUserData();
         } else {
             // Load demo data when not authenticated
@@ -117,6 +130,12 @@ const app = createApp({
                 this.isAuthenticated = true;
                 localStorage.setItem('carbontrack_token', this.authToken);
                 
+                // Store user profile with role
+                if (response.data.user) {
+                    this.userProfile = response.data.user;
+                    localStorage.setItem('carbontrack_user', JSON.stringify(response.data.user));
+                }
+                
                 await this.loadUserData();
                 this.currentView = 'dashboard';
                 
@@ -135,6 +154,7 @@ const app = createApp({
             this.isAuthenticated = false;
             this.authToken = null;
             localStorage.removeItem('carbontrack_token');
+            localStorage.removeItem('carbontrack_user');
             this.currentView = 'login';
             this.userProfile = { user_id: '', email: '', full_name: '', carbon_budget: 500 };
             this.emissions = [];
