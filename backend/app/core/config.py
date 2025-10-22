@@ -25,10 +25,10 @@ class Settings(BaseSettings):
     aws_access_key_id: Optional[str] = None
     aws_secret_access_key: Optional[str] = None
     
-    # Cognito configuration
-    cognito_user_pool_id: str = "us-east-1_XXXXXXXXX"
-    cognito_client_id: str = "your_client_id_here"
-    cognito_client_secret: str = "your_client_secret_here"
+    # Cognito configuration (EU-CENTRAL-1)
+    cognito_user_pool_id: str = "eu-central-1_liszdknXy"
+    cognito_client_id: str = "3rg58gvke8v6afmfng7o4fk0r1"
+    cognito_client_secret: str = ""  # No secret for this client
     
     # DynamoDB tables
     users_table: str = "carbontrack-users"
