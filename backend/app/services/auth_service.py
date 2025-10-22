@@ -96,8 +96,30 @@ class AuthService:
                 Permanent=True
             )
             
+            # Save user to DynamoDB
+            user_id = response['User']['Username']
+            from datetime import datetime
+            import boto3
+            from ..core.config import settings
+            
+            dynamodb = boto3.resource('dynamodb', region_name=settings.aws_region)
+            users_table = dynamodb.Table(settings.users_table)
+            
+            users_table.put_item(
+                Item={
+                    'userId': user_id,
+                    'email': user_data.email,
+                    'full_name': user_data.full_name,
+                    'role': 'user',
+                    'created_at': datetime.utcnow().isoformat(),
+                    'updated_at': datetime.utcnow().isoformat(),
+                    'carbon_budget': 500,  # Default budget
+                    'email_verified': False
+                }
+            )
+            
             return {
-                "user_id": response['User']['Username'],
+                "user_id": user_id,
                 "email": user_data.email,
                 "status": "confirmed",
                 "message": "User registered successfully"
