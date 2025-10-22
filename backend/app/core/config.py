@@ -42,9 +42,9 @@ class Settings(BaseSettings):
     jwt_expiration_hours: int = 24
     jwt_refresh_expiration_days: int = 30
     
-    # CORS origins
+    # CORS origins - allow all in production for ease of access
     allowed_origins: List[str] = Field(
-        default=["http://localhost:3000", "http://localhost:8080"],
+        default=["*"],
         description="CORS allowed origins"
     )
 
