@@ -104,12 +104,13 @@ jobs:
           API_URL="${{ secrets.PRODUCTION_API_URL }}"
         fi
 
-        # Inject window.API_BASE_URL into index.html if provided
+        # Inject window.API_BASE_URL into index.html by replacing the placeholder
         if [ -n "$API_URL" ]; then
           echo "Injecting API base URL into index.html: $API_URL"
-          sed -i "s|</head>|<script>window.API_BASE_URL=\"$API_URL\";<\/script></head>|" dist/index.html || true
+          sed -i "s|window.API_BASE_URL = window.API_BASE_URL \|\| undefined;|window.API_BASE_URL = \"$API_URL\";|" dist/index.html
+          echo "✅ API URL injected successfully"
         else
-          echo "No PRODUCTION_API_URL provided via Actions Variable or Secret; leaving default runtime behavior."
+          echo "⚠️  No PRODUCTION_API_URL provided via Actions Variable or Secret; using fallback in code."
         fi
 
         # Cache-bust app-full.js so browsers fetch the fresh build
