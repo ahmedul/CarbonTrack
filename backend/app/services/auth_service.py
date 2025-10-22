@@ -124,23 +124,6 @@ class AuthService:
     async def authenticate_user(self, credentials: UserLogin) -> TokenResponse:
         """Authenticate user with AWS Cognito"""
         try:
-            # Handle demo/test users with special credentials
-            if credentials.email in ["demo@carbontrack.dev", "test@carbontrack.dev", "admin@carbontrack.dev"]:
-                # For demo users, return a demo token that middleware will accept
-                demo_token = f"demo-{credentials.email.split('@')[0]}-token"
-                return TokenResponse(
-                    access_token=demo_token,
-                    token_type="Bearer",
-                    expires_in=86400,  # 24 hours
-                    refresh_token=f"{demo_token}-refresh",
-                    user={
-                        "user_id": f"demo-{credentials.email.split('@')[0]}",
-                        "email": credentials.email,
-                        "full_name": credentials.email.split('@')[0].title() + " User",
-                        "email_verified": True
-                    }
-                )
-            
             if self.is_mock:
                 # Mock response for testing
                 mock_token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoidGVzdF91c2VyIiwiZW1haWwiOiJ0ZXN0QGV4YW1wbGUuY29tIiwiZXhwIjo5OTk5OTk5OTk5fQ.test-signature"
@@ -180,6 +163,10 @@ class AuthService:
                     for attr in user_info['UserAttributes']
                 }
                 
+                # Determine user role (admin for specific email)
+                admin_emails = ['ahmedulkabir55@gmail.com']
+                user_role = 'admin' if credentials.email in admin_emails else 'user'
+                
                 return TokenResponse(
                     access_token=tokens['AccessToken'],
                     refresh_token=tokens.get('RefreshToken'),
@@ -188,7 +175,8 @@ class AuthService:
                         "user_id": user_info['Username'],
                         "email": credentials.email,
                         "full_name": user_attributes.get('name', ''),
-                        "email_verified": user_attributes.get('email_verified') == 'true'
+                        "email_verified": user_attributes.get('email_verified') == 'true',
+                        "role": user_role
                     }
                 )
             else:
