@@ -79,19 +79,14 @@ def _handle_mock_authentication(token: str) -> Dict[str, Any]:
 async def _validate_cognito_token(token: str) -> Dict[str, Any]:
     """Validate real AWS Cognito JWT token"""
     try:
-        # For development, we can decode without verification
-        # In production, implement proper JWT verification with Cognito public keys
-        if settings.debug:
-            payload = jwt.get_unverified_claims(token)
-        else:
-            # For production, decode without signature verification for now
-            # TODO: Implement proper JWT verification with Cognito public keys
-            payload = jwt.decode(
-                token,
-                key="",  # Empty key since we're not verifying signature
-                algorithms=["RS256"],
-                options={"verify_signature": False, "verify_aud": False},
-            )
+        # Decode without signature verification for now
+        # TODO: Implement proper JWT verification with Cognito public keys
+        payload = jwt.decode(
+            token,
+            key="",  # Empty key since we're not verifying signature
+            algorithms=["RS256"],
+            options={"verify_signature": False, "verify_aud": False},
+        )
         
         # Extract user information from the token
         return {
@@ -119,11 +114,25 @@ def verify_token(token: str) -> Dict[str, Any]:
     if _is_mock_token(token):
         return _handle_mock_authentication(token)
     
-    # For non-mock tokens, try Cognito validation
+    # For non-mock tokens, try Cognito validation (synchronous version)
     try:
-        import asyncio
-        loop = asyncio.get_event_loop()
-        return loop.run_until_complete(_validate_cognito_token(token))
+        # Decode without signature verification
+        payload = jwt.decode(
+            token,
+            key="",
+            algorithms=["RS256"],
+            options={"verify_signature": False, "verify_aud": False},
+        )
+        
+        # Extract user information
+        return {
+            "user_id": payload.get("sub"),
+            "email": payload.get("email"),
+            "username": payload.get("email", payload.get("cognito:username")),
+            "first_name": payload.get("given_name", ""),
+            "last_name": payload.get("family_name", ""),
+            "cognito:groups": payload.get("cognito:groups", ["user"])
+        }
     except Exception as e:
         if settings.debug:
             # Fall back to mock in development if Cognito fails
