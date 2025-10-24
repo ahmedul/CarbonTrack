@@ -1649,7 +1649,7 @@ const app = createApp({
                     console.log('✅ Registration successful via API');
                     const msg = (response.data && (response.data.message || response.data.status))
                       ? `🎉 ${response.data.message || 'Registration successful.'}`
-                      : '🎉 Registration Successful! Your account request has been submitted for admin approval. You will be notified once approved.';
+                      : '🎉 Registration Successful! You can now log in with your credentials.';
                     this.showNotification(msg, 'success');
                     
                     // Reload admin data if user is admin
@@ -1662,9 +1662,6 @@ const app = createApp({
                         this.currentView = 'login';
                         this.loginForm.email = this.registerForm.email;
                     }, 1500);
-                } else {
-                    console.log('❌ API registration returned unexpected response, using local simulation');
-                    this.handleLocalRegistration();
                 }
             } catch (error) {
                 console.error('Error during API registration:', error);
@@ -1677,8 +1674,10 @@ const app = createApp({
                     const detail = error?.response?.data?.detail || 'Invalid input. Please check the form.';
                     this.showNotification(detail, 'error');
                 } else {
-                    console.log('📡 API not available, using local simulation');
-                    this.handleLocalRegistration();
+                    // Show actual error instead of falling back to local mode
+                    const errorMsg = error?.response?.data?.detail || error?.message || 'Registration failed. Please try again.';
+                    console.error('Registration error:', errorMsg);
+                    this.showNotification(`Registration failed: ${errorMsg}`, 'error');
                 }
             } finally {
                 // Reset form but stay on registration page to see success
