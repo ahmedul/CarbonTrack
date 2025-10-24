@@ -83,39 +83,60 @@ def _handle_mock_authentication(token: str) -> Dict[str, Any]:
 
 async def _validate_cognito_token(token: str) -> Dict[str, Any]:
     """Validate real AWS Cognito JWT token"""
-    try:
-        # Decode JWT without signature verification for now
-        # TODO: Implement proper JWT verification with Cognito public keys
-        payload = jwt.decode(
-            token,
-            key="",  # Empty key since we're not verifying signature
-            algorithms=["RS256"],
-            options={"verify_signature": False, "verify_aud": False},
-        )
-        
-        # Extract user information from the token
-        email = payload.get("email")
-        
-        # Determine user role (admin for specific email)
-        admin_emails = ['ahmedulkabir55@gmail.com']
-        user_role = 'admin' if email in admin_emails else 'user'
-        
-        return {
-            "user_id": payload.get("sub"),
-            "email": email,
-            "username": email,  # Cognito uses email as username
-            "first_name": payload.get("given_name", ""),
-            "last_name": payload.get("family_name", ""),
-            "role": user_role,
-            "cognito:groups": payload.get("cognito:groups", ["user"])
-        }
-        
-    except JWTError as e:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Invalid token: {str(e)}",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+    # Decode JWT without signature verification for now
+    # TODO: Implement proper JWT verification with Cognito public keys
+    payload = jwt.decode(
+        token,
+        key="",  # Empty key since we're not verifying signature
+        algorithms=["RS256"],
+        options={"verify_signature": False, "verify_aud": False},
+    )
+    
+    # Extract user information from the token
+    email = payload.get("email")
+    
+    # Determine user role (admin for specific email)
+    admin_emails = ['ahmedulkabir55@gmail.com']
+    user_role = 'admin' if email in admin_emails else 'user'
+    
+    return {
+        "user_id": payload.get("sub"),
+        "email": email,
+        "username": email,  # Cognito uses email as username
+        "first_name": payload.get("given_name", ""),
+        "last_name": payload.get("family_name", ""),
+        "role": user_role,
+        "cognito:groups": payload.get("cognito:groups", ["user"])
+    }
+
+
+def _validate_cognito_token_sync(token: str) -> Dict[str, Any]:
+    """Synchronous wrapper for Cognito token validation"""
+    # Decode JWT without signature verification for now
+    # TODO: Implement proper JWT verification with Cognito public keys
+    payload = jwt.decode(
+        token,
+        key="",  # Empty key since we're not verifying signature
+        algorithms=["RS256"],
+        options={"verify_signature": False, "verify_aud": False},
+    )
+    
+    # Extract user information from the token
+    email = payload.get("email")
+    
+    # Determine user role (admin for specific email)
+    admin_emails = ['ahmedulkabir55@gmail.com']
+    user_role = 'admin' if email in admin_emails else 'user'
+    
+    return {
+        "user_id": payload.get("sub"),
+        "email": email,
+        "username": email,  # Cognito uses email as username
+        "first_name": payload.get("given_name", ""),
+        "last_name": payload.get("family_name", ""),
+        "role": user_role,
+        "cognito:groups": payload.get("cognito:groups", ["user"])
+    }
 
 
 def verify_token(token: str) -> Dict[str, Any]:
@@ -126,15 +147,9 @@ def verify_token(token: str) -> Dict[str, Any]:
     if _is_mock_token(token):
         return _handle_mock_authentication(token)
     
-    # For non-mock tokens, try Cognito validation
+    # For non-mock tokens, use synchronous Cognito validation
     try:
-        import asyncio
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-        return loop.run_until_complete(_validate_cognito_token(token))
+        return _validate_cognito_token_sync(token)
     except HTTPException:
         # Re-raise HTTP exceptions as-is
         raise
