@@ -71,16 +71,21 @@ async def get_all_users(admin_user: Dict[str, Any] = Depends(require_admin)) -> 
         formatted_users = []
         for user in users:
             formatted_users.append({
-                'id': user.get('userId', ''),
+                'user_id': user.get('userId', ''),  # Frontend expects user_id
+                'id': user.get('userId', ''),  # Also include id for compatibility
                 'email': user.get('email', ''),
                 'full_name': user.get('full_name', ''),
                 'role': user.get('role', 'user'),
                 'created_at': user.get('created_at', ''),
                 'carbon_budget': user.get('carbon_budget', 500),
-                'status': 'active'  # All users in DB are active for now
+                'status': user.get('status', 'active'),
+                'last_active': user.get('last_active', ''),
+                'total_emissions': user.get('total_emissions', 0),
+                'entries_count': user.get('entries_count', 0)
             })
         
         return {
+            "success": True,  # Frontend expects this field
             "users": formatted_users,
             "total": len(formatted_users)
         }
