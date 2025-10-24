@@ -1731,7 +1731,7 @@ const app = createApp({
         async loadPendingUsers() {
             try {
                 console.log('Loading pending users...');
-                const response = await axios.get(`${this.apiBase}/api/admin/pending-users`, {
+                const response = await axios.get(`${this.apiBase}/api/v1/admin/pending-users`, {
                     headers: {
                         'Authorization': `Bearer ${this.authToken}`,
                         'Content-Type': 'application/json'
@@ -1766,7 +1766,7 @@ const app = createApp({
         async loadAllUsers() {
             try {
                 console.log('Loading all users...');
-                const response = await axios.get(`${this.apiBase}/api/admin/users`, {
+                const response = await axios.get(`${this.apiBase}/api/v1/admin/users`, {
                     headers: {
                         'Authorization': `Bearer ${this.authToken}`,
                         'Content-Type': 'application/json'
@@ -1801,7 +1801,7 @@ const app = createApp({
         
         async loadAdminStats() {
             try {
-                const response = await axios.get(`${this.apiBase}/api/admin/stats`, {
+                const response = await axios.get(`${this.apiBase}/api/v1/admin/stats`, {
                     headers: {
                         'Authorization': `Bearer ${this.authToken}`,
                         'Content-Type': 'application/json'
@@ -1826,7 +1826,7 @@ const app = createApp({
             try {
                 console.log('Approving user:', userId);
                 const response = await axios.post(
-                    `${this.apiBase}/api/admin/users/${userId}/approve`, 
+                    `${this.apiBase}/api/v1/admin/users/${userId}/approve`, 
                     {},
                     {
                         headers: {
@@ -1866,7 +1866,7 @@ const app = createApp({
         async rejectUser(userId) {
             try {
                 const response = await axios.delete(
-                    `${this.apiBase}/api/admin/users/${userId}`,
+                    `${this.apiBase}/api/v1/admin/users/${userId}`,
                     {
                         headers: {
                             'Authorization': `Bearer ${this.authToken}`,
