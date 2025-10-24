@@ -414,7 +414,11 @@ const app = createApp({
                     }
                     
                     this.showNotification('Login successful! Welcome to CarbonTrack.', 'success');
-                    this.initializeChart();
+                    
+                    // Initialize chart after DOM is ready
+                    this.$nextTick(() => {
+                        this.initializeChart();
+                    });
                     return;
                 }
             } catch (error) {

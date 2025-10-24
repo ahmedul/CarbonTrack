@@ -143,11 +143,14 @@ async def get_admin_stats(admin_user: Dict[str, Any] = Depends(require_admin)) -
                 monthly_entries += 1
         
         return {
-            "total_users": total_users,
-            "pending_registrations": 0,  # No pending system yet
-            "active_this_month": monthly_entries,
-            "total_carbon_tracked": round(total_emissions, 2),
-            "total_entries": total_entries
+            "success": True,
+            "stats": {
+                "total_users": total_users,
+                "pending_registrations": 0,  # No pending system yet
+                "active_this_month": monthly_entries,
+                "total_carbon_tracked": round(total_emissions, 2),
+                "total_entries": total_entries
+            }
         }
         
     except Exception as e:
