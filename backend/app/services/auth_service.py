@@ -127,6 +127,7 @@ class AuthService:
                     'email': user_data.email,
                     'full_name': user_data.full_name,
                     'role': 'user',
+                    'status': 'pending',  # User needs admin approval
                     'created_at': datetime.utcnow().isoformat(),
                     'updated_at': datetime.utcnow().isoformat(),
                     'carbon_budget': 500,  # Default budget
@@ -137,8 +138,8 @@ class AuthService:
             return {
                 "user_id": user_id,
                 "email": user_data.email,
-                "status": "confirmed",
-                "message": "User registered successfully"
+                "status": "pending",
+                "message": "Registration successful! Your account is pending admin approval. You will be notified once approved."
             }
             
         except ClientError as e:
@@ -190,7 +191,7 @@ class AuthService:
             if 'AuthenticationResult' in response:
                 tokens = response['AuthenticationResult']
                 
-                # Get user info
+                # Get user info from Cognito
                 user_info = self.client.admin_get_user(
                     UserPoolId=self.user_pool_id,
                     Username=credentials.email
@@ -200,6 +201,40 @@ class AuthService:
                     attr['Name']: attr['Value'] 
                     for attr in user_info['UserAttributes']
                 }
+                
+                # Check user status in DynamoDB
+                import boto3
+                from ..core.config import settings
+                
+                dynamodb = boto3.resource('dynamodb', region_name=settings.aws_region)
+                users_table = dynamodb.Table(settings.users_table)
+                
+                # Find user by email
+                db_response = users_table.scan(
+                    FilterExpression='email = :email',
+                    ExpressionAttributeValues={':email': credentials.email}
+                )
+                
+                if not db_response.get('Items'):
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="User account not found in database"
+                    )
+                
+                user_record = db_response['Items'][0]
+                user_status = user_record.get('status', 'pending')
+                
+                # Check if user is approved
+                if user_status == 'pending':
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Your account is pending admin approval. Please wait for approval before logging in."
+                    )
+                elif user_status == 'rejected':
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Your account has been rejected by an administrator."
+                    )
                 
                 # Determine user role (admin for specific email)
                 admin_emails = ['ahmedulkabir55@gmail.com']

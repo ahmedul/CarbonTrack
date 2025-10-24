@@ -100,12 +100,45 @@ async def get_all_users(admin_user: Dict[str, Any] = Depends(require_admin)) -> 
 @router.get("/pending-users")
 async def get_pending_users(admin_user: Dict[str, Any] = Depends(require_admin)) -> Dict[str, Any]:
     """Get list of pending user registrations (admin only)"""
-    # For now, return empty since our registration flow creates users directly
-    # In future, could implement approval workflow
-    return {
-        "pending_users": [],
-        "total": 0
-    }
+    try:
+        dynamodb = boto3.resource('dynamodb', region_name=settings.aws_region)
+        users_table = dynamodb.Table(settings.users_table)
+        
+        # Scan for users with status = 'pending'
+        response = users_table.scan(
+            FilterExpression='#status = :status',
+            ExpressionAttributeNames={
+                '#status': 'status'
+            },
+            ExpressionAttributeValues={
+                ':status': 'pending'
+            }
+        )
+        
+        pending_users = response.get('Items', [])
+        
+        # Format for frontend
+        formatted_users = []
+        for user in pending_users:
+            formatted_users.append({
+                'user_id': user.get('userId', ''),
+                'email': user.get('email', ''),
+                'full_name': user.get('full_name', ''),
+                'created_at': user.get('created_at', ''),
+                'status': 'pending'
+            })
+        
+        return {
+            "success": True,
+            "pending_users": formatted_users,
+            "total": len(formatted_users)
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching pending users: {str(e)}"
+        )
 
 
 @router.get("/stats")
@@ -116,9 +149,13 @@ async def get_admin_stats(admin_user: Dict[str, Any] = Depends(require_admin)) -
         users_table = dynamodb.Table(settings.users_table)
         entries_table = dynamodb.Table(settings.entries_table)
         
-        # Get user count
-        users_response = users_table.scan(Select='COUNT')
-        total_users = users_response.get('Count', 0)
+        # Get user count and pending count
+        users_response = users_table.scan()
+        all_users = users_response.get('Items', [])
+        total_users = len(all_users)
+        
+        # Count pending users
+        pending_count = sum(1 for user in all_users if user.get('status') == 'pending')
         
         # Get entries count and total emissions
         entries_response = entries_table.scan()
@@ -146,7 +183,7 @@ async def get_admin_stats(admin_user: Dict[str, Any] = Depends(require_admin)) -
             "success": True,
             "stats": {
                 "total_users": total_users,
-                "pending_registrations": 0,  # No pending system yet
+                "pending_registrations": pending_count,
                 "active_this_month": monthly_entries,
                 "total_carbon_tracked": round(total_emissions, 2),
                 "total_entries": total_entries
@@ -166,11 +203,48 @@ async def approve_user(
     admin_user: Dict[str, Any] = Depends(require_admin)
 ) -> Dict[str, Any]:
     """Approve a pending user (admin only)"""
-    # Since we don't have pending users yet, just return success
-    return {
-        "message": "User approved successfully",
-        "user_id": user_id
-    }
+    try:
+        dynamodb = boto3.resource('dynamodb', region_name=settings.aws_region)
+        users_table = dynamodb.Table(settings.users_table)
+        
+        # Get the user
+        response = users_table.get_item(Key={'userId': user_id})
+        
+        if 'Item' not in response:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        user = response['Item']
+        
+        # Update status to active
+        from datetime import datetime
+        users_table.update_item(
+            Key={'userId': user_id},
+            UpdateExpression='SET #status = :status, updated_at = :updated_at',
+            ExpressionAttributeNames={
+                '#status': 'status'
+            },
+            ExpressionAttributeValues={
+                ':status': 'active',
+                ':updated_at': datetime.utcnow().isoformat()
+            }
+        )
+        
+        return {
+            "success": True,
+            "message": f"User {user.get('email', user_id)} approved successfully",
+            "user_id": user_id
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error approving user: {str(e)}"
+        )
 
 
 @router.delete("/users/{user_id}")
