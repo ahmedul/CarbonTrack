@@ -75,6 +75,25 @@ class AuthService:
                     "message": "User registered successfully (mock)"
                 }
             
+            # First, check if email already exists in DynamoDB
+            import boto3
+            from ..core.config import settings
+            
+            dynamodb = boto3.resource('dynamodb', region_name=settings.aws_region)
+            users_table = dynamodb.Table(settings.users_table)
+            
+            # Scan for existing email (since email is not the primary key)
+            existing_users = users_table.scan(
+                FilterExpression='email = :email',
+                ExpressionAttributeValues={':email': user_data.email}
+            )
+            
+            if existing_users.get('Items'):
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="User with this email already exists"
+                )
+            
             response = self.client.admin_create_user(
                 UserPoolId=self.user_pool_id,
                 Username=user_data.email,
@@ -99,10 +118,7 @@ class AuthService:
             # Save user to DynamoDB
             user_id = response['User']['Username']
             from datetime import datetime
-            import boto3
-            from ..core.config import settings
             
-            dynamodb = boto3.resource('dynamodb', region_name=settings.aws_region)
             users_table = dynamodb.Table(settings.users_table)
             
             users_table.put_item(

@@ -1651,6 +1651,12 @@ const app = createApp({
                       ? `🎉 ${response.data.message || 'Registration successful.'}`
                       : '🎉 Registration Successful! Your account request has been submitted for admin approval. You will be notified once approved.';
                     this.showNotification(msg, 'success');
+                    
+                    // Reload admin data if user is admin
+                    if (this.isAdmin) {
+                        await this.loadAdminData();
+                    }
+                    
                     // Switch to login view after a short delay
                     setTimeout(() => {
                         this.currentView = 'login';
