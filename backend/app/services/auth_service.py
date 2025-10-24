@@ -189,7 +189,8 @@ class AuthService:
                 admin_emails = ['ahmedulkabir55@gmail.com']
                 user_role = 'admin' if credentials.email in admin_emails else 'user'
                 
-                # Use IdToken instead of AccessToken - IdToken contains user claims like email
+                # Use IdToken which contains user claims (email, name, etc.)
+                # AccessToken is for authorization scopes only
                 return TokenResponse(
                     access_token=tokens.get('IdToken', tokens['AccessToken']),
                     refresh_token=tokens.get('RefreshToken'),
