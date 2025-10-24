@@ -265,11 +265,15 @@ const app = createApp({
                 this.loadEmissions();
                 this.loadRecommendations();
                 this.loadRecommendationStats();
-                this.initializeChart();
+                // Initialize chart after DOM is ready
+                this.$nextTick(() => {
+                    this.initializeChart();
+                });
             } else {
             // Validate the token with backend before loading data
             const valid = await this.validateSession();
             if (valid) {
+                this.currentView = 'dashboard';
                 this.loadEmissions();
                 this.loadRecommendations();
                 this.loadRecommendationStats();
@@ -277,13 +281,16 @@ const app = createApp({
                 if (this.userProfile.role === 'admin' && this.authToken) {
                     this.loadAdminData();
                 }
+                // Initialize chart after DOM is ready
+                this.$nextTick(() => {
+                    this.initializeChart();
+                });
             } else {
                 // Invalid/expired token — clear state and show login
                 this.logout();
             }
             }
         }
-        this.initializeChart();
     },
     
     methods: {
@@ -869,13 +876,22 @@ const app = createApp({
                 return;
             }
             
-            setTimeout(() => {
+            try {
                 const ctx = document.getElementById('emissionsChart');
-                if (ctx && !this.chart) {
-                    // Prepare chart data from emissions
-                    const chartData = this.prepareChartData();
-                    
-                    this.chart = new Chart(ctx, {
+                if (!ctx) {
+                    console.warn('Chart canvas element not found, skipping initialization');
+                    return;
+                }
+                
+                if (this.chart) {
+                    console.log('Chart already initialized, skipping');
+                    return;
+                }
+                
+                // Prepare chart data from emissions
+                const chartData = this.prepareChartData();
+                
+                this.chart = new Chart(ctx, {
                         type: 'line',
                         data: {
                             labels: chartData.labels,
@@ -965,8 +981,11 @@ const app = createApp({
                             }
                         }
                     });
+                    
+                    console.log('Chart initialized successfully');
+                } catch (error) {
+                    console.error('Error initializing chart:', error);
                 }
-            }, 100);
         },
         
         updateChart() {
