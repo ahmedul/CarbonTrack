@@ -248,6 +248,11 @@
                                     class="px-4 py-2.5 rounded-xl hover:bg-white/20 transition-all duration-200 font-medium text-sm backdrop-blur-sm border border-yellow-300/50">
                                 ⚙️ Admin
                             </button>
+                            <!-- User Name Display -->
+                            <div class="flex items-center px-4 py-2.5 rounded-xl bg-white/10 backdrop-blur-sm border border-white/20">
+                                <span class="text-sm font-medium">👋 {{ userProfile.full_name || userProfile.email || 'User' }}</span>
+                                <span v-if="userProfile.role === 'admin'" class="ml-2 px-2 py-0.5 bg-yellow-400/20 border border-yellow-300/50 rounded-md text-xs font-bold text-yellow-100">ADMIN</span>
+                            </div>
                             <button @click="logout" 
                                     class="px-4 py-2.5 rounded-xl bg-red-500/80 hover:bg-red-600/80 transition-all duration-200 font-medium text-sm backdrop-blur-sm">
                                 🚪 Logout
