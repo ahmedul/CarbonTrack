@@ -129,9 +129,17 @@ def verify_token(token: str) -> Dict[str, Any]:
     # For non-mock tokens, try Cognito validation
     try:
         import asyncio
-        loop = asyncio.get_event_loop()
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
         return loop.run_until_complete(_validate_cognito_token(token))
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
     except Exception as e:
+        print(f"[DEBUG] Token validation error: {type(e).__name__}: {str(e)}")
         if settings.debug:
             # Fall back to mock in development if Cognito fails
             return _handle_mock_authentication(token)
