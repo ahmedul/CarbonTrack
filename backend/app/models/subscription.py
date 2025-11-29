@@ -227,6 +227,7 @@ PRICING = {
         "stripe_price_id_yearly": "price_enterprise_yearly",
         "features": [
             "✅ Everything in Business",
+            "🔐 Blockchain-verified reports (tamper-proof)",
             "✅ Unlimited entities & subsidiaries",
             "✅ White-label branding",
             "✅ SSO (Single Sign-On)",
@@ -248,6 +249,14 @@ PRICING = {
         },
         "csrd_access": True,
         "white_label": True,
+        "blockchain_verification": True,
+        "blockchain_benefits": {
+            "tamper_proof": "Cryptographically sealed - impossible to alter historical data",
+            "audit_ready": "Instant verification for auditors - reduces audit time by 50%",
+            "credibility": "Blockchain badge for marketing - builds investor confidence",
+            "compliance": "Regulatory protection - evidence against false reporting claims",
+            "competitive": "First CSRD platform with blockchain - unique market differentiator"
+        },
         "sso": True,
         "dedicated_support": True
     }

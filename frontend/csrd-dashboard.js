@@ -5,8 +5,18 @@
 
 const CSRDDashboard = {
     name: 'CSRDDashboard',
+    components: {
+        SubscriptionGate: window.SubscriptionGate
+    },
     template: `
         <div class="csrd-dashboard">
+            <!-- Subscription Gate -->
+            <subscription-gate 
+                :show="showSubscriptionGate"
+                required-tier="PROFESSIONAL"
+                @close="handleGateClose"
+            />
+            
             <!-- Header -->
             <div class="dashboard-header">
                 <h2><i class="fas fa-chart-bar"></i> CSRD Compliance Dashboard</h2>
@@ -318,6 +328,8 @@ const CSRDDashboard = {
             loading: false,
             creating: false,
             showCreateModal: false,
+            showSubscriptionGate: false,
+            hasAccess: false,
             filters: {
                 year: null,
                 status: null
@@ -341,10 +353,55 @@ const CSRDDashboard = {
         };
     },
     mounted() {
-        this.loadReports();
+        this.checkSubscription();
     },
     methods: {
+        async checkSubscription() {
+            try {
+                const response = await fetch(
+                    `${this.apiBase}/api/v1/subscriptions/check-feature/csrd`,
+                    {
+                        headers: {
+                            'Authorization': `Bearer ${localStorage.getItem('token')}`
+                        }
+                    }
+                );
+
+                if (response.ok) {
+                    const data = await response.json();
+                    this.hasAccess = data.has_access;
+                    
+                    if (this.hasAccess) {
+                        this.loadReports();
+                    } else {
+                        this.showSubscriptionGate = true;
+                    }
+                } else if (response.status === 402) {
+                    // Payment required
+                    this.hasAccess = false;
+                    this.showSubscriptionGate = true;
+                } else {
+                    console.error('Failed to check subscription:', await response.text());
+                    this.showSubscriptionGate = true;
+                }
+            } catch (err) {
+                console.error('Subscription check error:', err);
+                this.showSubscriptionGate = true;
+            }
+        },
+        
+        handleGateClose() {
+            // User closed gate without upgrading - redirect to dashboard
+            this.showSubscriptionGate = false;
+            window.location.href = '/';
+        },
+        
         async loadReports() {
+            if (!this.hasAccess) {
+                this.showSubscriptionGate = true;
+                return;
+            }
+            
             this.loading = true;
             try {
                 const params = new URLSearchParams();
