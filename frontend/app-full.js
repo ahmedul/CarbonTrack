@@ -1190,7 +1190,7 @@ const app = createApp({
                 }
                 
                 // Original API call for real backend
-                const response = await axios.get(`${this.apiBase}/recommendations/`, {
+                const response = await axios.get(`${this.apiBase}/api/v1/recommendations/`, {
                     headers: {
                         'Authorization': `Bearer ${this.authToken}`,
                         'Content-Type': 'application/json'
@@ -1229,7 +1229,7 @@ const app = createApp({
                     return;
                 }
                 
-                const response = await axios.get(`${this.apiBase}/recommendations/stats`, {
+                const response = await axios.get(`${this.apiBase}/api/v1/recommendations/stats`, {
                     headers: {
                         'Authorization': `Bearer ${this.authToken}`,
                         'Content-Type': 'application/json'
@@ -1361,7 +1361,7 @@ const app = createApp({
                     return;
                 }
                 
-                const response = await axios.get(`${this.apiBase}/gamification/profile`, {
+                const response = await axios.get(`${this.apiBase}/api/v1/gamification/profile`, {
                     headers: {
                         'Authorization': `Bearer ${this.authToken}`,
                         'Content-Type': 'application/json'
@@ -1471,7 +1471,7 @@ const app = createApp({
                     return;
                 }
                 
-                const response = await axios.get(`${this.apiBase}/gamification/achievements`, {
+                const response = await axios.get(`${this.apiBase}/api/v1/gamification/achievements`, {
                     headers: {
                         'Authorization': `Bearer ${this.authToken}`,
                         'Content-Type': 'application/json'
@@ -1568,7 +1568,7 @@ const app = createApp({
         
         async completeChallenge(challengeId) {
             try {
-                const response = await axios.post(`${this.apiBase}/gamification/challenges/${challengeId}/complete`, {}, {
+                const response = await axios.post(`${this.apiBase}/api/v1/gamification/challenges/${challengeId}/complete`, {}, {
                     headers: {
                         'Authorization': `Bearer ${this.authToken}`,
                         'Content-Type': 'application/json'
