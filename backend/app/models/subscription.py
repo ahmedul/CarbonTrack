@@ -1,0 +1,164 @@
+"""
+Subscription and payment models for CarbonTrack premium features
+"""
+from datetime import datetime
+from enum import Enum
+from pydantic import BaseModel, Field
+from typing import Optional
+
+
+class SubscriptionTier(str, Enum):
+    """Subscription tier levels"""
+    FREE = "free"
+    PROFESSIONAL = "professional"
+    ENTERPRISE = "enterprise"
+
+
+class SubscriptionStatus(str, Enum):
+    """Subscription status"""
+    ACTIVE = "active"
+    TRIAL = "trial"
+    PAST_DUE = "past_due"
+    CANCELED = "canceled"
+    EXPIRED = "expired"
+
+
+class Subscription(BaseModel):
+    """Subscription model"""
+    subscription_id: str = Field(..., description="Unique subscription ID")
+    user_id: str = Field(..., description="User ID")
+    company_id: Optional[str] = Field(None, description="Company ID for B2B")
+    tier: SubscriptionTier = Field(..., description="Subscription tier")
+    status: SubscriptionStatus = Field(..., description="Subscription status")
+    
+    # Stripe integration
+    stripe_customer_id: Optional[str] = Field(None, description="Stripe customer ID")
+    stripe_subscription_id: Optional[str] = Field(None, description="Stripe subscription ID")
+    stripe_price_id: Optional[str] = Field(None, description="Stripe price ID")
+    
+    # Billing
+    amount: float = Field(..., description="Monthly/yearly amount in USD")
+    billing_period: str = Field("monthly", description="monthly or yearly")
+    currency: str = Field("USD", description="Currency code")
+    
+    # Dates
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    trial_start: Optional[datetime] = Field(None, description="Trial start date")
+    trial_end: Optional[datetime] = Field(None, description="Trial end date")
+    current_period_start: datetime = Field(default_factory=datetime.utcnow)
+    current_period_end: datetime = Field(..., description="Current billing period end")
+    canceled_at: Optional[datetime] = Field(None, description="Cancellation date")
+    
+    # Features
+    features: dict = Field(default_factory=dict, description="Enabled features")
+    
+    class Config:
+        schema_extra = {
+            "example": {
+                "subscription_id": "sub_123abc",
+                "user_id": "user_456def",
+                "company_id": "company_789ghi",
+                "tier": "enterprise",
+                "status": "active",
+                "stripe_customer_id": "cus_stripe123",
+                "stripe_subscription_id": "sub_stripe456",
+                "amount": 99.00,
+                "billing_period": "monthly",
+                "currency": "USD",
+                "current_period_end": "2026-01-29T00:00:00Z",
+                "features": {
+                    "csrd_compliance": True,
+                    "multi_entity": True,
+                    "audit_trail": True,
+                    "api_access": True
+                }
+            }
+        }
+
+
+class FeatureAccess(BaseModel):
+    """Feature access control"""
+    user_id: str
+    tier: SubscriptionTier
+    has_csrd_access: bool = False
+    has_api_access: bool = False
+    has_multi_entity: bool = False
+    has_audit_trail: bool = False
+    has_priority_support: bool = False
+    max_entities: int = 1  # Number of companies/subsidiaries
+    max_reports_per_month: int = 10
+    
+    @classmethod
+    def from_subscription(cls, subscription: Subscription):
+        """Create FeatureAccess from Subscription"""
+        tier = subscription.tier
+        
+        # Define features per tier
+        features = {
+            SubscriptionTier.FREE: {
+                "has_csrd_access": False,
+                "has_api_access": False,
+                "has_multi_entity": False,
+                "has_audit_trail": False,
+                "has_priority_support": False,
+                "max_entities": 1,
+                "max_reports_per_month": 5
+            },
+            SubscriptionTier.PROFESSIONAL: {
+                "has_csrd_access": False,
+                "has_api_access": True,
+                "has_multi_entity": False,
+                "has_audit_trail": True,
+                "has_priority_support": False,
+                "max_entities": 1,
+                "max_reports_per_month": 50
+            },
+            SubscriptionTier.ENTERPRISE: {
+                "has_csrd_access": True,  # CSRD only in Enterprise!
+                "has_api_access": True,
+                "has_multi_entity": True,
+                "has_audit_trail": True,
+                "has_priority_support": True,
+                "max_entities": 10,
+                "max_reports_per_month": -1  # Unlimited
+            }
+        }
+        
+        return cls(
+            user_id=subscription.user_id,
+            tier=tier,
+            **features.get(tier, features[SubscriptionTier.FREE])
+        )
+
+
+class PaymentIntent(BaseModel):
+    """Payment intent for Stripe checkout"""
+    amount: float
+    currency: str = "USD"
+    tier: SubscriptionTier
+    billing_period: str  # "monthly" or "yearly"
+    success_url: str
+    cancel_url: str
+
+
+# Pricing configuration
+PRICING = {
+    SubscriptionTier.FREE: {
+        "monthly": 0,
+        "yearly": 0,
+        "stripe_price_id_monthly": None,
+        "stripe_price_id_yearly": None
+    },
+    SubscriptionTier.PROFESSIONAL: {
+        "monthly": 29,
+        "yearly": 290,  # 2 months free
+        "stripe_price_id_monthly": "price_professional_monthly",
+        "stripe_price_id_yearly": "price_professional_yearly"
+    },
+    SubscriptionTier.ENTERPRISE: {
+        "monthly": 99,
+        "yearly": 990,  # 2 months free
+        "stripe_price_id_monthly": "price_enterprise_monthly",
+        "stripe_price_id_yearly": "price_enterprise_yearly"
+    }
+}
