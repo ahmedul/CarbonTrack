@@ -93,10 +93,10 @@ class FeatureAccess(BaseModel):
         """Create FeatureAccess from Subscription"""
         tier = subscription.tier
         
-        # Define features per tier
+        # Define features per tier - CSRD is PROFESSIONAL+ only
         features = {
             SubscriptionTier.FREE: {
-                "has_csrd_access": False,
+                "has_csrd_access": False,  # No CSRD for free users
                 "has_api_access": False,
                 "has_multi_entity": False,
                 "has_audit_trail": False,
@@ -105,16 +105,16 @@ class FeatureAccess(BaseModel):
                 "max_reports_per_month": 5
             },
             SubscriptionTier.PROFESSIONAL: {
-                "has_csrd_access": False,
+                "has_csrd_access": True,  # ✅ CSRD access enabled at PROFESSIONAL
                 "has_api_access": True,
                 "has_multi_entity": False,
                 "has_audit_trail": True,
-                "has_priority_support": False,
+                "has_priority_support": True,
                 "max_entities": 1,
                 "max_reports_per_month": 50
             },
             SubscriptionTier.ENTERPRISE: {
-                "has_csrd_access": True,  # CSRD only in Enterprise!
+                "has_csrd_access": True,  # ✅ Full CSRD access
                 "has_api_access": True,
                 "has_multi_entity": True,
                 "has_audit_trail": True,
@@ -147,18 +147,64 @@ PRICING = {
         "monthly": 0,
         "yearly": 0,
         "stripe_price_id_monthly": None,
-        "stripe_price_id_yearly": None
+        "stripe_price_id_yearly": None,
+        "features": [
+            "Basic carbon tracking",
+            "Personal dashboard",
+            "Up to 10 emissions entries/month"
+        ],
+        "csrd_access": False
     },
     SubscriptionTier.PROFESSIONAL: {
-        "monthly": 29,
-        "yearly": 290,  # 2 months free
+        "monthly": 49,
+        "yearly": 470,  # ~20% discount
         "stripe_price_id_monthly": "price_professional_monthly",
-        "stripe_price_id_yearly": "price_professional_yearly"
+        "stripe_price_id_yearly": "price_professional_yearly",
+        "features": [
+            "✅ CSRD Compliance Module",
+            "Unlimited emissions tracking",
+            "Advanced analytics",
+            "API access",
+            "Priority support"
+        ],
+        "csrd_access": True,
+        "most_popular": True
     },
     SubscriptionTier.ENTERPRISE: {
-        "monthly": 99,
-        "yearly": 990,  # 2 months free
+        "monthly": 199,
+        "yearly": 1910,  # ~20% discount
         "stripe_price_id_monthly": "price_enterprise_monthly",
-        "stripe_price_id_yearly": "price_enterprise_yearly"
+        "stripe_price_id_yearly": "price_enterprise_yearly",
+        "features": [
+            "✅ Full CSRD Compliance Suite",
+            "✅ Blockchain verification",
+            "✅ White-label branding",
+            "Unlimited team members",
+            "Dedicated support",
+            "Custom integrations"
+        ],
+        "csrd_access": True,
+        "blockchain_verification": True,
+        "white_label": True
     }
 }
+
+
+class SubscriptionPlan:
+    """Helper class for subscription plan details"""
+    
+    @staticmethod
+    def get_plan_details(tier: SubscriptionTier) -> dict:
+        """Get detailed plan information for a subscription tier"""
+        base_info = PRICING.get(tier, PRICING[SubscriptionTier.FREE])
+        
+        return {
+            "tier": tier.value,
+            "name": f"{tier.value.title()} Plan",
+            "price_monthly": base_info["monthly"],
+            "price_annual": base_info["yearly"],
+            "currency": "USD",
+            "features": base_info.get("features", []),
+            "csrd_access": base_info.get("csrd_access", False),
+            "most_popular": base_info.get("most_popular", False)
+        }

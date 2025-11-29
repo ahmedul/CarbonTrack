@@ -19,28 +19,46 @@ from app.models.csrd import (
 )
 from app.core.middleware import get_current_user
 from app.db.csrd_db import csrd_db
+from app.db.subscription_db import subscription_db
 
 router = APIRouter(prefix="/csrd", tags=["CSRD Compliance"])
 
 
 # Dependency to check CSRD access
 async def verify_csrd_access(current_user: dict = Depends(get_current_user)):
-    """Verify user has access to CSRD features"""
-    # Check if user has premium/enterprise subscription
-    # For now, we'll allow all authenticated users (implement subscription check later)
+    """Verify user has access to CSRD features (PREMIUM ONLY)"""
     if not current_user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication required"
         )
     
-    # TODO: Check subscription tier
-    # has_csrd = current_user.get("subscription", {}).get("has_csrd_access", False)
-    # if not has_csrd:
-    #     raise HTTPException(
-    #         status_code=status.HTTP_403_FORBIDDEN,
-    #         detail="CSRD features require Enterprise subscription"
-    #     )
+    # Check subscription tier - CSRD is PREMIUM ONLY
+    user_id = current_user.get("user_id")
+    subscription = await subscription_db.get_user_subscription(user_id)
+    
+    # Verify user has CSRD access
+    has_csrd_access = subscription_db.has_feature_access(subscription, 'csrd')
+    
+    if not has_csrd_access:
+        tier = subscription.get('tier', 'FREE')
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail={
+                "error": "Premium Feature Required",
+                "message": "CSRD Compliance Module requires a PROFESSIONAL or ENTERPRISE subscription",
+                "current_tier": tier,
+                "required_tiers": ["PROFESSIONAL", "ENTERPRISE"],
+                "upgrade_url": "/api/v1/subscriptions/upgrade",
+                "pricing": {
+                    "PROFESSIONAL": {"price": 49, "currency": "USD", "period": "month"},
+                    "ENTERPRISE": {"price": 199, "currency": "USD", "period": "month"}
+                }
+            }
+        )
+    
+    # Add subscription info to current_user for downstream use
+    current_user["subscription"] = subscription
     
     return current_user
 
