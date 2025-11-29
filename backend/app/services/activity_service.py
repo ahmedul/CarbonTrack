@@ -158,27 +158,103 @@ class ActivityService:
             
         Returns:
             Created activity record
+            
+        Raises:
+            HTTPException: If user has reached activity limit
         """
+        from fastapi import HTTPException
+        
         try:
+            # Check activity limit (100 per user for now)
+            ACTIVITY_LIMIT = 100
+            
+            # Get current activity count
+            if user_id not in self.activities:
+                self.activities[user_id] = []
+            
+            current_count = len(self.activities[user_id])
+            
+            if current_count >= ACTIVITY_LIMIT:
+                logger.warning(f"User {user_id} has reached activity limit ({ACTIVITY_LIMIT})")
+                raise HTTPException(
+                    status_code=429,
+                    detail={
+                        "error": "Activity limit reached",
+                        "message": f"You have reached the maximum of {ACTIVITY_LIMIT} activities. Please delete some activities or upgrade your plan.",
+                        "current_count": current_count,
+                        "limit": ACTIVITY_LIMIT
+                    }
+                )
+            
+            # Warn user when approaching limit (at 90%)
+            if current_count >= ACTIVITY_LIMIT * 0.9:
+                logger.info(f"User {user_id} approaching activity limit: {current_count}/{ACTIVITY_LIMIT}")
+                # Send email warning (optional - can be implemented later)
+                # await email_service.send_limit_warning_email(user_email, user_name, current_count, ACTIVITY_LIMIT)
+            
             activity_id = f"{user_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
             activity_record = {
                 "activity_id": activity_id,
                 "user_id": user_id,
                 "timestamp": datetime.now().isoformat(),
                 "date": datetime.now().strftime('%Y-%m-%d'),
+                "count_towards_limit": True,
                 **activity_data
             }
             
             # Store activity (in production, this would go to a database)
-            if user_id not in self.activities:
-                self.activities[user_id] = []
             self.activities[user_id].append(activity_record)
             
-            logger.info(f"Added activity {activity_id} for user {user_id}")
+            logger.info(f"Added activity {activity_id} for user {user_id} ({current_count + 1}/{ACTIVITY_LIMIT})")
+            
+            # Add remaining count to response
+            activity_record["_meta"] = {
+                "activities_remaining": ACTIVITY_LIMIT - current_count - 1,
+                "total_limit": ACTIVITY_LIMIT,
+                "current_count": current_count + 1
+            }
+            
             return activity_record
             
+        except HTTPException:
+            # Re-raise HTTPException as-is
+            raise
         except Exception as e:
             logger.error(f"Error adding activity: {str(e)}")
+            raise
+    
+    async def get_activity_limit_status(self, user_id: str) -> Dict[str, Any]:
+        """
+        Get user's activity limit status.
+        
+        Args:
+            user_id: User identifier
+            
+        Returns:
+            Limit status information
+        """
+        try:
+            ACTIVITY_LIMIT = 100
+            
+            if user_id not in self.activities:
+                self.activities[user_id] = []
+            
+            current_count = len(self.activities[user_id])
+            remaining = ACTIVITY_LIMIT - current_count
+            percentage_used = (current_count / ACTIVITY_LIMIT) * 100
+            
+            return {
+                "user_id": user_id,
+                "current_count": current_count,
+                "limit": ACTIVITY_LIMIT,
+                "remaining": remaining,
+                "percentage_used": round(percentage_used, 2),
+                "is_at_limit": current_count >= ACTIVITY_LIMIT,
+                "warning_threshold_reached": current_count >= ACTIVITY_LIMIT * 0.9
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting activity limit status: {str(e)}")
             raise
     
     async def get_activity_summary(self, user_id: str, days: int = 7) -> Dict[str, Any]:
