@@ -46,13 +46,14 @@ async def verify_csrd_access(current_user: dict = Depends(get_current_user)):
             status_code=status.HTTP_402_PAYMENT_REQUIRED,
             detail={
                 "error": "Premium Feature Required",
-                "message": "CSRD Compliance Module requires a PROFESSIONAL or ENTERPRISE subscription",
+                "message": "CSRD Compliance Module requires a PROFESSIONAL, BUSINESS, or ENTERPRISE subscription",
                 "current_tier": tier,
-                "required_tiers": ["PROFESSIONAL", "ENTERPRISE"],
+                "required_tiers": ["PROFESSIONAL", "BUSINESS", "ENTERPRISE"],
                 "upgrade_url": "/api/v1/subscriptions/upgrade",
                 "pricing": {
-                    "PROFESSIONAL": {"price": 49, "currency": "USD", "period": "month"},
-                    "ENTERPRISE": {"price": 199, "currency": "USD", "period": "month"}
+                    "PROFESSIONAL": {"price": 49, "currency": "USD", "period": "month", "entities": 1},
+                    "BUSINESS": {"price": 149, "currency": "USD", "period": "month", "entities": 5},
+                    "ENTERPRISE": {"price": 499, "currency": "USD", "period": "month", "entities": "unlimited"}
                 }
             }
         )

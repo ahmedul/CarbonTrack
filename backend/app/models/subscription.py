@@ -11,6 +11,7 @@ class SubscriptionTier(str, Enum):
     """Subscription tier levels"""
     FREE = "free"
     PROFESSIONAL = "professional"
+    BUSINESS = "business"
     ENTERPRISE = "enterprise"
 
 
@@ -106,12 +107,21 @@ class FeatureAccess(BaseModel):
             },
             SubscriptionTier.PROFESSIONAL: {
                 "has_csrd_access": True,  # ✅ CSRD access enabled at PROFESSIONAL
-                "has_api_access": True,
+                "has_api_access": False,
                 "has_multi_entity": False,
                 "has_audit_trail": True,
-                "has_priority_support": True,
+                "has_priority_support": False,
                 "max_entities": 1,
                 "max_reports_per_month": 50
+            },
+            SubscriptionTier.BUSINESS: {
+                "has_csrd_access": True,  # ✅ Full CSRD access
+                "has_api_access": True,
+                "has_multi_entity": True,
+                "has_audit_trail": True,
+                "has_priority_support": True,
+                "max_entities": 5,
+                "max_reports_per_month": -1  # Unlimited
             },
             SubscriptionTier.ENTERPRISE: {
                 "has_csrd_access": True,  # ✅ Full CSRD access
@@ -119,7 +129,7 @@ class FeatureAccess(BaseModel):
                 "has_multi_entity": True,
                 "has_audit_trail": True,
                 "has_priority_support": True,
-                "max_entities": 10,
+                "max_entities": -1,  # Unlimited
                 "max_reports_per_month": -1  # Unlimited
             }
         }
@@ -151,8 +161,16 @@ PRICING = {
         "features": [
             "Basic carbon tracking",
             "Personal dashboard",
-            "Up to 10 emissions entries/month"
+            "Mobile app access",
+            "Up to 10 emissions entries/month",
+            "Community support"
         ],
+        "limits": {
+            "max_entities": 1,
+            "max_users": 1,
+            "max_reports_per_year": 0,
+            "api_access": False
+        },
         "csrd_access": False
     },
     SubscriptionTier.PROFESSIONAL: {
@@ -162,30 +180,76 @@ PRICING = {
         "stripe_price_id_yearly": "price_professional_yearly",
         "features": [
             "✅ CSRD Compliance Module",
+            "Single entity reporting",
             "Unlimited emissions tracking",
-            "Advanced analytics",
-            "API access",
-            "Priority support"
+            "ESRS standards (E1-E5, S1-S4, G1)",
+            "PDF export for submission",
+            "Basic analytics",
+            "Email support"
         ],
+        "limits": {
+            "max_entities": 1,
+            "max_users": 3,
+            "max_reports_per_year": 12,
+            "api_access": False
+        },
         "csrd_access": True,
         "most_popular": True
     },
+    SubscriptionTier.BUSINESS: {
+        "monthly": 149,
+        "yearly": 1430,  # ~20% discount
+        "stripe_price_id_monthly": "price_business_monthly",
+        "stripe_price_id_yearly": "price_business_yearly",
+        "features": [
+            "✅ Everything in Professional",
+            "✅ Multi-entity consolidation (up to 5)",
+            "✅ Advanced analytics & trends",
+            "✅ API access & webhooks",
+            "Custom report templates",
+            "Data export (CSV, JSON, Excel)",
+            "Priority email support",
+            "Up to 10 team members"
+        ],
+        "limits": {
+            "max_entities": 5,
+            "max_users": 10,
+            "max_reports_per_year": -1,  # Unlimited
+            "api_access": True,
+            "api_calls_per_day": 10000
+        },
+        "csrd_access": True
+    },
     SubscriptionTier.ENTERPRISE: {
-        "monthly": 199,
-        "yearly": 1910,  # ~20% discount
+        "monthly": 499,
+        "yearly": 4790,  # ~20% discount
         "stripe_price_id_monthly": "price_enterprise_monthly",
         "stripe_price_id_yearly": "price_enterprise_yearly",
         "features": [
-            "✅ Full CSRD Compliance Suite",
-            "✅ Blockchain verification",
+            "✅ Everything in Business",
+            "✅ Unlimited entities & subsidiaries",
             "✅ White-label branding",
-            "Unlimited team members",
-            "Dedicated support",
-            "Custom integrations"
+            "✅ SSO (Single Sign-On)",
+            "✅ Advanced API access",
+            "Custom integrations (SAP, Oracle)",
+            "Automated data collection",
+            "Dedicated account manager",
+            "Custom training sessions",
+            "SLA guarantee (99.9% uptime)",
+            "24/7 priority support",
+            "Unlimited team members"
         ],
+        "limits": {
+            "max_entities": -1,  # Unlimited
+            "max_users": -1,  # Unlimited
+            "max_reports_per_year": -1,  # Unlimited
+            "api_access": True,
+            "api_calls_per_day": 100000
+        },
         "csrd_access": True,
-        "blockchain_verification": True,
-        "white_label": True
+        "white_label": True,
+        "sso": True,
+        "dedicated_support": True
     }
 }
 

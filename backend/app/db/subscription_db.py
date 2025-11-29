@@ -193,12 +193,14 @@ class SubscriptionDatabase:
         
         # Feature access by tier
         feature_matrix = {
-            'csrd': [SubscriptionTier.PROFESSIONAL.value, SubscriptionTier.ENTERPRISE.value],
-            'advanced_analytics': [SubscriptionTier.PROFESSIONAL.value, SubscriptionTier.ENTERPRISE.value],
-            'api_access': [SubscriptionTier.PROFESSIONAL.value, SubscriptionTier.ENTERPRISE.value],
+            'csrd': [SubscriptionTier.PROFESSIONAL.value, SubscriptionTier.BUSINESS.value, SubscriptionTier.ENTERPRISE.value],
+            'advanced_analytics': [SubscriptionTier.BUSINESS.value, SubscriptionTier.ENTERPRISE.value],
+            'api_access': [SubscriptionTier.BUSINESS.value, SubscriptionTier.ENTERPRISE.value],
+            'multi_entity': [SubscriptionTier.BUSINESS.value, SubscriptionTier.ENTERPRISE.value],
             'white_label': [SubscriptionTier.ENTERPRISE.value],
-            'blockchain_verification': [SubscriptionTier.ENTERPRISE.value],
-            'dedicated_support': [SubscriptionTier.ENTERPRISE.value]
+            'sso': [SubscriptionTier.ENTERPRISE.value],
+            'dedicated_support': [SubscriptionTier.ENTERPRISE.value],
+            'custom_integrations': [SubscriptionTier.ENTERPRISE.value]
         }
         
         allowed_tiers = feature_matrix.get(feature, [])

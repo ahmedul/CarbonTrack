@@ -77,6 +77,12 @@ async def upgrade_subscription(
             detail="Cannot upgrade to FREE tier. Use /cancel endpoint instead."
         )
     
+    if tier not in [SubscriptionTier.PROFESSIONAL, SubscriptionTier.BUSINESS, SubscriptionTier.ENTERPRISE]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid subscription tier. Choose PROFESSIONAL, BUSINESS, or ENTERPRISE."
+        )
+    
     # Validate billing period
     if billing_period_months not in [1, 3, 6, 12]:
         raise HTTPException(
