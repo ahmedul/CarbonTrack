@@ -2,7 +2,7 @@
 CSRD (Corporate Sustainability Reporting Directive) API endpoints
 Premium feature for enterprise customers
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from typing import List, Optional
 from datetime import datetime
 import uuid
@@ -18,6 +18,7 @@ from app.models.csrd import (
     ESRSMetrics
 )
 from app.core.middleware import get_current_user
+from app.db.csrd_db import csrd_db
 
 router = APIRouter(prefix="/csrd", tags=["CSRD Compliance"])
 
@@ -46,6 +47,7 @@ async def verify_csrd_access(current_user: dict = Depends(get_current_user)):
 
 @router.post("/reports", response_model=CSRDReport, status_code=status.HTTP_201_CREATED)
 async def create_csrd_report(
+    request: Request,
     company_name: str,
     reporting_year: int,
     country: str,
@@ -80,31 +82,27 @@ async def create_csrd_report(
         sector=sector,
         employee_count=employee_count,
         annual_revenue_eur=annual_revenue_eur,
-        metrics=ESRSMetrics(),
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow()
+        esrs_metrics=ESRSMetrics(),
+        emissions_scope=EmissionsScope()
     )
     
-    # TODO: Save to DynamoDB
-    # await save_csrd_report(report)
-    
-    # Create audit trail entry
-    audit_entry = AuditTrailEntry(
-        entry_id=str(uuid.uuid4()),
-        report_id=report_id,
+    # Save to DynamoDB
+    client_ip = request.client.host if request.client else "unknown"
+    saved_report = await csrd_db.create_report(
+        report=report,
         user_id=current_user["user_id"],
-        action="created",
-        timestamp=datetime.utcnow()
+        ip_address=client_ip
     )
-    # TODO: Save audit entry
     
-    return report
+    return saved_report
 
 
-@router.get("/reports", response_model=List[CSRDReportSummary])
+@router.get("/reports", response_model=dict)
 async def list_csrd_reports(
     year: Optional[int] = None,
     status: Optional[ComplianceStatus] = None,
+    skip: int = 0,
+    limit: int = 50,
     current_user: dict = Depends(verify_csrd_access)
 ):
     """
@@ -112,41 +110,26 @@ async def list_csrd_reports(
     
     - **year**: Filter by reporting year
     - **status**: Filter by compliance status
+    - **skip**: Number of records to skip (pagination)
+    - **limit**: Maximum number of records to return
     """
-    # TODO: Fetch from DynamoDB
-    # For now, return mock data
+    company_id = current_user.get("company_id", "default_company")
     
-    mock_reports = [
-        CSRDReportSummary(
-            report_id="csrd_2025_abc123",
-            company_name="Demo Company GmbH",
-            reporting_year=2025,
-            status=ComplianceStatus.IN_PROGRESS,
-            completeness_score=65.5,
-            total_emissions=5151.6,
-            submission_deadline=datetime(2026, 4, 30),
-            last_updated=datetime.utcnow()
-        ),
-        CSRDReportSummary(
-            report_id="csrd_2024_def456",
-            company_name="Demo Company GmbH",
-            reporting_year=2024,
-            status=ComplianceStatus.SUBMITTED,
-            completeness_score=100.0,
-            total_emissions=4823.2,
-            submission_deadline=datetime(2025, 4, 30),
-            last_updated=datetime(2024, 12, 15)
-        )
-    ]
+    # Fetch from DynamoDB
+    reports, total = await csrd_db.list_reports(
+        company_id=company_id,
+        reporting_year=year,
+        status=status,
+        skip=skip,
+        limit=limit
+    )
     
-    # Apply filters
-    filtered = mock_reports
-    if year:
-        filtered = [r for r in filtered if r.reporting_year == year]
-    if status:
-        filtered = [r for r in filtered if r.status == status]
-    
-    return filtered
+    return {
+        "reports": reports,
+        "total": total,
+        "skip": skip,
+        "limit": limit
+    }
 
 
 @router.get("/reports/{report_id}", response_model=CSRDReport)
@@ -157,48 +140,21 @@ async def get_csrd_report(
     """
     Get detailed CSRD report by ID
     """
-    # TODO: Fetch from DynamoDB
+    # Fetch from DynamoDB
+    report = await csrd_db.get_report(report_id)
     
-    # Mock data
-    report = CSRDReport(
-        report_id=report_id,
-        company_id="company_abc",
-        user_id=current_user["user_id"],
-        reporting_year=2025,
-        reporting_period=ReportingPeriod.ANNUAL,
-        status=ComplianceStatus.IN_PROGRESS,
-        company_name="Demo Company GmbH",
-        company_registration_number="HRB 12345",
-        country="DE",
-        sector="Technology",
-        employee_count=350,
-        annual_revenue_eur=45000000,
-        metrics=ESRSMetrics(
-            emissions=EmissionsScope(
-                scope_1=450.5,
-                scope_2=1200.3,
-                scope_3=3500.8,
-                total=5151.6
-            ),
-            renewable_energy_percentage=65.0,
-            energy_consumption_mwh=8500.0,
-            water_consumption_m3=15000.0,
-            waste_generated_tonnes=120.5,
-            waste_recycled_percentage=78.0,
-            total_workforce=350,
-            female_employees_percentage=42.5
-        ),
-        standards_included=[
-            CSRDStandard.E1_CLIMATE,
-            CSRDStandard.E2_POLLUTION,
-            CSRDStandard.E3_WATER,
-            CSRDStandard.S1_WORKFORCE
-        ],
-        completeness_score=65.5,
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow(),
-        submission_deadline=datetime(2026, 4, 30)
-    )
+    if not report:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Report {report_id} not found"
+        )
+    
+    # Verify access (user must own the report or be from same company)
+    if report.user_id != current_user["user_id"] and report.company_id != current_user.get("company_id"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied to this report"
+        )
     
     return report
 
@@ -206,59 +162,75 @@ async def get_csrd_report(
 @router.put("/reports/{report_id}", response_model=CSRDReport)
 async def update_csrd_report(
     report_id: str,
-    metrics: Optional[ESRSMetrics] = None,
-    status: Optional[ComplianceStatus] = None,
-    auditor_name: Optional[str] = None,
-    notes: Optional[str] = None,
-    current_user: dict = Depends(verify_csrd_access)
+    request: Request,
+    current_user: dict = Depends(verify_csrd_access),
+    # Optional update fields
+    status_update: Optional[ComplianceStatus] = None,
+    emissions_scope: Optional[EmissionsScope] = None,
+    esrs_metrics: Optional[ESRSMetrics] = None,
+    notes: Optional[str] = None
 ):
     """
     Update CSRD report data
     
-    - **metrics**: Update ESG metrics
-    - **status**: Update compliance status
-    - **auditor_name**: Assign auditor
+    - **status_update**: Change compliance status
+    - **emissions_scope**: Update emissions data (Scope 1, 2, 3)
+    - **esrs_metrics**: Update ESRS metrics
     - **notes**: Add notes or comments
     """
-    # TODO: Fetch existing report from DynamoDB
-    # TODO: Update fields
-    # TODO: Recalculate completeness score
-    # TODO: Save back to DynamoDB
+    # Verify report exists and user has access
+    report = await csrd_db.get_report(report_id)
+    if not report:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Report {report_id} not found"
+        )
     
-    # Create audit trail
-    audit_entry = AuditTrailEntry(
-        entry_id=str(uuid.uuid4()),
+    if report.user_id != current_user["user_id"] and report.company_id != current_user.get("company_id"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied to this report"
+        )
+    
+    # Build updates dictionary
+    updates = {}
+    if status_update:
+        updates['status'] = status_update.value
+    if emissions_scope:
+        updates['emissions_scope'] = emissions_scope.dict()
+    if esrs_metrics:
+        updates['esrs_metrics'] = esrs_metrics.dict()
+    if notes:
+        updates['notes'] = notes
+    
+    # Calculate and update completeness
+    if emissions_scope or esrs_metrics:
+        # Create updated report for completeness calculation
+        temp_report = report.copy(deep=True)
+        if emissions_scope:
+            temp_report.emissions_scope = emissions_scope
+        if esrs_metrics:
+            temp_report.esrs_metrics = esrs_metrics
+        completeness = await csrd_db.calculate_completeness(temp_report)
+        updates['completeness_score'] = completeness
+    
+    # Update in database
+    client_ip = request.client.host if request.client else "unknown"
+    updated_report = await csrd_db.update_report(
         report_id=report_id,
+        updates=updates,
         user_id=current_user["user_id"],
-        action="updated",
-        timestamp=datetime.utcnow()
+        ip_address=client_ip
     )
     
-    # Mock updated report
-    report = CSRDReport(
-        report_id=report_id,
-        company_id="company_abc",
-        user_id=current_user["user_id"],
-        reporting_year=2025,
-        reporting_period=ReportingPeriod.ANNUAL,
-        status=status or ComplianceStatus.IN_PROGRESS,
-        company_name="Demo Company GmbH",
-        country="DE",
-        employee_count=350,
-        annual_revenue_eur=45000000,
-        metrics=metrics or ESRSMetrics(),
-        auditor_name=auditor_name,
-        notes=notes,
-        updated_at=datetime.utcnow(),
-        created_at=datetime.utcnow()
-    )
-    
-    return report
+    return updated_report
 
 
-@router.post("/reports/{report_id}/submit", response_model=dict)
+@router.post("/reports/{report_id}/submit", response_model=CSRDReport)
+@router.post("/reports/{report_id}/submit", response_model=CSRDReport)
 async def submit_csrd_report(
     report_id: str,
+    request: Request,
     current_user: dict = Depends(verify_csrd_access)
 ):
     """
@@ -266,27 +238,38 @@ async def submit_csrd_report(
     
     Validates completeness and marks as submitted
     """
-    # TODO: Fetch report from DynamoDB
-    # TODO: Validate completeness (must be >= 95%)
-    # TODO: Update status to SUBMITTED
-    # TODO: Record submission timestamp
+    # Fetch report
+    report = await csrd_db.get_report(report_id)
+    if not report:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Report {report_id} not found"
+        )
     
-    # Create audit trail
-    audit_entry = AuditTrailEntry(
-        entry_id=str(uuid.uuid4()),
+    # Verify access
+    if report.user_id != current_user["user_id"] and report.company_id != current_user.get("company_id"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied to this report"
+        )
+    
+    # Check completeness
+    completeness = await csrd_db.calculate_completeness(report)
+    if completeness < 95.0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Report must be at least 95% complete to submit (current: {completeness}%)"
+        )
+    
+    # Submit report
+    client_ip = request.client.host if request.client else "unknown"
+    submitted_report = await csrd_db.submit_report(
         report_id=report_id,
         user_id=current_user["user_id"],
-        action="submitted",
-        timestamp=datetime.utcnow()
+        ip_address=client_ip
     )
     
-    return {
-        "success": True,
-        "message": "CSRD report submitted successfully",
-        "report_id": report_id,
-        "submitted_at": datetime.utcnow().isoformat(),
-        "status": "submitted"
-    }
+    return submitted_report
 
 
 @router.get("/reports/{report_id}/export/pdf")
@@ -323,40 +306,24 @@ async def get_audit_trail(
     
     Shows all changes and actions performed on the report
     """
-    # TODO: Fetch from DynamoDB audit table
-    
-    # Mock audit trail
-    mock_trail = [
-        AuditTrailEntry(
-            entry_id=str(uuid.uuid4()),
-            report_id=report_id,
-            user_id=current_user["user_id"],
-            action="created",
-            timestamp=datetime(2025, 1, 15, 10, 30, 0)
-        ),
-        AuditTrailEntry(
-            entry_id=str(uuid.uuid4()),
-            report_id=report_id,
-            user_id=current_user["user_id"],
-            action="updated",
-            field_changed="emissions.scope_1",
-            old_value="0.0",
-            new_value="450.5",
-            timestamp=datetime(2025, 2, 20, 14, 15, 0)
-        ),
-        AuditTrailEntry(
-            entry_id=str(uuid.uuid4()),
-            report_id=report_id,
-            user_id=current_user["user_id"],
-            action="updated",
-            field_changed="status",
-            old_value="not_started",
-            new_value="in_progress",
-            timestamp=datetime(2025, 2, 20, 14, 16, 0)
+    # Verify report exists and user has access
+    report = await csrd_db.get_report(report_id)
+    if not report:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Report {report_id} not found"
         )
-    ]
     
-    return mock_trail
+    if report.user_id != current_user["user_id"] and report.company_id != current_user.get("company_id"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied to this report"
+        )
+    
+    # Fetch audit trail from database
+    audit_trail = await csrd_db.get_audit_trail(report_id)
+    
+    return audit_trail
 
 
 @router.get("/standards", response_model=List[dict])
@@ -510,3 +477,50 @@ async def get_compliance_calendar(
     ]
     
     return calendar
+
+
+@router.post("/reports/{report_id}/verify", response_model=CSRDReport)
+async def verify_csrd_report(
+    report_id: str,
+    request: Request,
+    verifier_name: str,
+    verifier_license: str,
+    verification_date: str,
+    notes: Optional[str] = None,
+    current_user: dict = Depends(verify_csrd_access)
+):
+    """
+    Add third-party verification to a CSRD report
+    
+    - **verifier_name**: Name of auditing firm/professional
+    - **verifier_license**: Professional license number
+    - **verification_date**: Date of verification (ISO format)
+    - **notes**: Optional verification notes
+    """
+    # Verify report exists and user has access
+    report = await csrd_db.get_report(report_id)
+    if not report:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Report {report_id} not found"
+        )
+    
+    if report.user_id != current_user["user_id"] and report.company_id != current_user.get("company_id"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied to this report"
+        )
+    
+    # Add verification
+    client_ip = request.client.host if request.client else "unknown"
+    verified_report = await csrd_db.verify_report(
+        report_id=report_id,
+        verifier_name=verifier_name,
+        verifier_license=verifier_license,
+        verification_date=verification_date,
+        notes=notes,
+        user_id=current_user["user_id"],
+        ip_address=client_ip
+    )
+    
+    return verified_report
