@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 import typing
 from http import cookies as http_cookies
@@ -29,7 +31,7 @@ SERVER_PUSH_HEADERS_TO_COPY = {
 }
 
 
-def cookie_parser(cookie_string: str) -> typing.Dict[str, str]:
+def cookie_parser(cookie_string: str) -> dict[str, str]:
     """
     This function parses a ``Cookie`` HTTP header into a dict of key/value pairs.
 
@@ -41,7 +43,7 @@ def cookie_parser(cookie_string: str) -> typing.Dict[str, str]:
     Note: we are explicitly _NOT_ using `SimpleCookie.load` because it is based
     on an outdated spec and will fail on lots of input we want to support
     """
-    cookie_dict: typing.Dict[str, str] = {}
+    cookie_dict: dict[str, str] = {}
     for chunk in cookie_string.split(";"):
         if "=" in chunk:
             key, val = chunk.split("=", 1)
@@ -66,7 +68,7 @@ class HTTPConnection(typing.Mapping[str, typing.Any]):
     any functionality that is common to both `Request` and `WebSocket`.
     """
 
-    def __init__(self, scope: Scope, receive: typing.Optional[Receive] = None) -> None:
+    def __init__(self, scope: Scope, receive: Receive | None = None) -> None:
         assert scope["type"] in ("http", "websocket")
         self.scope = scope
 
@@ -99,11 +101,18 @@ class HTTPConnection(typing.Mapping[str, typing.Any]):
     def base_url(self) -> URL:
         if not hasattr(self, "_base_url"):
             base_url_scope = dict(self.scope)
-            base_url_scope["path"] = "/"
-            base_url_scope["query_string"] = b""
-            base_url_scope["root_path"] = base_url_scope.get(
+            # This is used by request.url_for, it might be used inside a Mount which
+            # would have its own child scope with its own root_path, but the base URL
+            # for url_for should still be the top level app root path.
+            app_root_path = base_url_scope.get(
                 "app_root_path", base_url_scope.get("root_path", "")
             )
+            path = app_root_path
+            if not path.endswith("/"):
+                path += "/"
+            base_url_scope["path"] = path
+            base_url_scope["query_string"] = b""
+            base_url_scope["root_path"] = app_root_path
             self._base_url = URL(scope=base_url_scope)
         return self._base_url
 
@@ -120,13 +129,13 @@ class HTTPConnection(typing.Mapping[str, typing.Any]):
         return self._query_params
 
     @property
-    def path_params(self) -> typing.Dict[str, typing.Any]:
+    def path_params(self) -> dict[str, typing.Any]:
         return self.scope.get("path_params", {})
 
     @property
-    def cookies(self) -> typing.Dict[str, str]:
+    def cookies(self) -> dict[str, str]:
         if not hasattr(self, "_cookies"):
-            cookies: typing.Dict[str, str] = {}
+            cookies: dict[str, str] = {}
             cookie_header = self.headers.get("cookie")
 
             if cookie_header:
@@ -135,7 +144,7 @@ class HTTPConnection(typing.Mapping[str, typing.Any]):
         return self._cookies
 
     @property
-    def client(self) -> typing.Optional[Address]:
+    def client(self) -> Address | None:
         # client is a 2 item tuple of (host, port), None or missing
         host_port = self.scope.get("client")
         if host_port is not None:
@@ -143,11 +152,11 @@ class HTTPConnection(typing.Mapping[str, typing.Any]):
         return None
 
     @property
-    def session(self) -> typing.Dict[str, typing.Any]:
+    def session(self) -> dict[str, typing.Any]:
         assert (
             "session" in self.scope
         ), "SessionMiddleware must be installed to access request.session"
-        return self.scope["session"]
+        return self.scope["session"]  # type: ignore[no-any-return]
 
     @property
     def auth(self) -> typing.Any:
@@ -173,9 +182,9 @@ class HTTPConnection(typing.Mapping[str, typing.Any]):
             self._state = State(self.scope["state"])
         return self._state
 
-    def url_for(self, __name: str, **path_params: typing.Any) -> URL:
+    def url_for(self, name: str, /, **path_params: typing.Any) -> URL:
         router: Router = self.scope["router"]
-        url_path = router.url_path_for(__name, **path_params)
+        url_path = router.url_path_for(name, **path_params)
         return url_path.make_absolute_url(base_url=self.base_url)
 
 
@@ -188,7 +197,7 @@ async def empty_send(message: Message) -> typing.NoReturn:
 
 
 class Request(HTTPConnection):
-    _form: typing.Optional[FormData]
+    _form: FormData | None
 
     def __init__(
         self, scope: Scope, receive: Receive = empty_receive, send: Send = empty_send
@@ -203,7 +212,7 @@ class Request(HTTPConnection):
 
     @property
     def method(self) -> str:
-        return self.scope["method"]
+        return typing.cast(str, self.scope["method"])
 
     @property
     def receive(self) -> Receive:
@@ -216,15 +225,14 @@ class Request(HTTPConnection):
             return
         if self._stream_consumed:
             raise RuntimeError("Stream consumed")
-        self._stream_consumed = True
-        while True:
+        while not self._stream_consumed:
             message = await self._receive()
             if message["type"] == "http.request":
                 body = message.get("body", b"")
+                if not message.get("more_body", False):
+                    self._stream_consumed = True
                 if body:
                     yield body
-                if not message.get("more_body", False):
-                    break
             elif message["type"] == "http.disconnect":
                 self._is_disconnected = True
                 raise ClientDisconnect()
@@ -232,7 +240,7 @@ class Request(HTTPConnection):
 
     async def body(self) -> bytes:
         if not hasattr(self, "_body"):
-            chunks: "typing.List[bytes]" = []
+            chunks: list[bytes] = []
             async for chunk in self.stream():
                 chunks.append(chunk)
             self._body = b"".join(chunks)
@@ -245,10 +253,7 @@ class Request(HTTPConnection):
         return self._json
 
     async def _get_form(
-        self,
-        *,
-        max_files: typing.Union[int, float] = 1000,
-        max_fields: typing.Union[int, float] = 1000,
+        self, *, max_files: int | float = 1000, max_fields: int | float = 1000
     ) -> FormData:
         if self._form is None:
             assert (
@@ -278,10 +283,7 @@ class Request(HTTPConnection):
         return self._form
 
     def form(
-        self,
-        *,
-        max_files: typing.Union[int, float] = 1000,
-        max_fields: typing.Union[int, float] = 1000,
+        self, *, max_files: int | float = 1000, max_fields: int | float = 1000
     ) -> AwaitableOrContextManager[FormData]:
         return AwaitableOrContextManagerWrapper(
             self._get_form(max_files=max_files, max_fields=max_fields)
@@ -307,7 +309,7 @@ class Request(HTTPConnection):
 
     async def send_push_promise(self, path: str) -> None:
         if "http.response.push" in self.scope.get("extensions", {}):
-            raw_headers: "typing.List[typing.Tuple[bytes, bytes]]" = []
+            raw_headers: list[tuple[bytes, bytes]] = []
             for name in SERVER_PUSH_HEADERS_TO_COPY:
                 for value in self.headers.getlist(name):
                     raw_headers.append(

@@ -1,0 +1,12 @@
+# AWS Cognito Configuration for CarbonTrack
+# TEMPLATE FILE - Copy to aws-cognito-config.txt and fill in your values
+# DO NOT commit aws-cognito-config.txt to git!
+
+AWS_REGION=eu-central-1
+COGNITO_USER_POOL_ID=your_user_pool_id_here
+COGNITO_CLIENT_ID=your_client_id_here
+COGNITO_CLIENT_SECRET=your_client_secret_here
+COGNITO_DOMAIN=your_cognito_domain_here
+
+# Get these values from AWS Console:
+# AWS Cognito → User Pools → [Your Pool] → App clients

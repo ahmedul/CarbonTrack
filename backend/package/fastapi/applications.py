@@ -13,6 +13,7 @@ from typing import (
     Union,
 )
 
+from annotated_doc import Doc
 from fastapi import routing
 from fastapi.datastructures import Default, DefaultPlaceholder
 from fastapi.exception_handlers import (
@@ -42,8 +43,8 @@ from starlette.middleware.exceptions import ExceptionMiddleware
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, JSONResponse, Response
 from starlette.routing import BaseRoute
-from starlette.types import ASGIApp, Lifespan, Receive, Scope, Send
-from typing_extensions import Annotated, Doc, deprecated  # type: ignore [attr-defined]
+from starlette.types import ASGIApp, ExceptionHandler, Lifespan, Receive, Scope, Send
+from typing_extensions import Annotated, deprecated
 
 AppType = TypeVar("AppType", bound="FastAPI")
 
@@ -75,7 +76,7 @@ class FastAPI(Starlette):
                 errors.
 
                 Read more in the
-                [Starlette docs for Applications](https://www.starlette.io/applications/#instantiating-the-application).
+                [Starlette docs for Applications](https://www.starlette.dev/applications/#instantiating-the-application).
                 """
             ),
         ] = False,
@@ -300,7 +301,12 @@ class FastAPI(Starlette):
                 browser tabs open). Or if you want to leave fixed the possible URLs.
 
                 If the servers `list` is not provided, or is an empty `list`, the
-                default value would be a a `dict` with a `url` value of `/`.
+                `servers` property in the generated OpenAPI will be:
+
+                * a `dict` with a `url` value of the application's mounting point
+                (`root_path`) if it's different from `/`.
+                * otherwise, the `servers` property will be omitted from the OpenAPI
+                schema.
 
                 Each item in the `list` is a `dict` containing:
 
@@ -751,7 +757,7 @@ class FastAPI(Starlette):
                 This affects the generated OpenAPI (e.g. visible at `/docs`).
 
                 Read more about it in the
-                [FastAPI docs for Query Parameters and String Validations](https://fastapi.tiangolo.com/tutorial/query-params-str-validations/#exclude-from-openapi).
+                [FastAPI docs for Query Parameters and String Validations](https://fastapi.tiangolo.com/tutorial/query-params-str-validations/#exclude-parameters-from-openapi).
                 """
             ),
         ] = True,
@@ -813,6 +819,32 @@ class FastAPI(Starlette):
                 """
             ),
         ] = True,
+        openapi_external_docs: Annotated[
+            Optional[Dict[str, Any]],
+            Doc(
+                """
+                This field allows you to provide additional external documentation links.
+                If provided, it must be a dictionary containing:
+
+                * `description`: A brief description of the external documentation.
+                * `url`: The URL pointing to the external documentation. The value **MUST**
+                be a valid URL format.
+
+                **Example**:
+
+                ```python
+                from fastapi import FastAPI
+
+                external_docs = {
+                    "description": "Detailed API Reference",
+                    "url": "https://example.com/api-docs",
+                }
+
+                app = FastAPI(openapi_external_docs=external_docs)
+                ```
+                """
+            ),
+        ] = None,
         **extra: Annotated[
             Any,
             Doc(
@@ -841,6 +873,7 @@ class FastAPI(Starlette):
         self.swagger_ui_parameters = swagger_ui_parameters
         self.servers = servers or []
         self.separate_input_output_schemas = separate_input_output_schemas
+        self.openapi_external_docs = openapi_external_docs
         self.extra = extra
         self.openapi_version: Annotated[
             str,
@@ -905,13 +938,13 @@ class FastAPI(Starlette):
                 A state object for the application. This is the same object for the
                 entire application, it doesn't change from request to request.
 
-                You normally woudln't use this in FastAPI, for most of the cases you
+                You normally wouldn't use this in FastAPI, for most of the cases you
                 would instead use FastAPI dependencies.
 
                 This is simply inherited from Starlette.
 
                 Read more about it in the
-                [Starlette docs for Applications](https://www.starlette.io/applications/#storing-state-on-the-app-instance).
+                [Starlette docs for Applications](https://www.starlette.dev/applications/#storing-state-on-the-app-instance).
                 """
             ),
         ] = State()
@@ -971,7 +1004,7 @@ class FastAPI(Starlette):
         # inside of ExceptionMiddleware, inside of custom user middlewares
         debug = self.debug
         error_handler = None
-        exception_handlers = {}
+        exception_handlers: dict[Any, ExceptionHandler] = {}
 
         for key, value in self.exception_handlers.items():
             if key in (500, Exception):
@@ -986,33 +1019,32 @@ class FastAPI(Starlette):
                 Middleware(
                     ExceptionMiddleware, handlers=exception_handlers, debug=debug
                 ),
-                # Add FastAPI-specific AsyncExitStackMiddleware for dependencies with
-                # contextvars.
+                # Add FastAPI-specific AsyncExitStackMiddleware for closing files.
+                # Before this was also used for closing dependencies with yield but
+                # those now have their own AsyncExitStack, to properly support
+                # streaming responses while keeping compatibility with the previous
+                # versions (as of writing 0.117.1) that allowed doing
+                # except HTTPException inside a dependency with yield.
                 # This needs to happen after user middlewares because those create a
                 # new contextvars context copy by using a new AnyIO task group.
-                # The initial part of dependencies with 'yield' is executed in the
-                # FastAPI code, inside all the middlewares. However, the teardown part
-                # (after 'yield') is executed in the AsyncExitStack in this middleware.
+                # This AsyncExitStack preserves the context for contextvars, not
+                # strictly necessary for closing files but it was one of the original
+                # intentions.
                 # If the AsyncExitStack lived outside of the custom middlewares and
-                # contextvars were set in a dependency with 'yield' in that internal
-                # contextvars context, the values would not be available in the
-                # outer context of the AsyncExitStack.
+                # contextvars were set, for example in a dependency with 'yield'
+                # in that internal contextvars context, the values would not be
+                # available in the outer context of the AsyncExitStack.
                 # By placing the middleware and the AsyncExitStack here, inside all
-                # user middlewares, the code before and after 'yield' in dependencies
-                # with 'yield' is executed in the same contextvars context. Thus, all values
-                # set in contextvars before 'yield' are still available after 'yield,' as
-                # expected.
-                # Additionally, by having this AsyncExitStack here, after the
-                # ExceptionMiddleware, dependencies can now catch handled exceptions,
-                # e.g. HTTPException, to customize the teardown code (e.g. DB session
-                # rollback).
+                # user middlewares, the same context is used.
+                # This is currently not needed, only for closing files, but used to be
+                # important when dependencies with yield were closed here.
                 Middleware(AsyncExitStackMiddleware),
             ]
         )
 
         app = self.router
-        for cls, options in reversed(middleware):
-            app = cls(app=app, **options)
+        for cls, args, kwargs in reversed(middleware):
+            app = cls(app, *args, **kwargs)
         return app
 
     def openapi(self) -> Dict[str, Any]:
@@ -1044,6 +1076,7 @@ class FastAPI(Starlette):
                 tags=self.openapi_tags,
                 servers=self.servers,
                 separate_input_output_schemas=self.separate_input_output_schemas,
+                external_docs=self.openapi_external_docs,
             )
         return self.openapi_schema
 
@@ -1071,7 +1104,7 @@ class FastAPI(Starlette):
                     oauth2_redirect_url = root_path + oauth2_redirect_url
                 return get_swagger_ui_html(
                     openapi_url=openapi_url,
-                    title=self.title + " - Swagger UI",
+                    title=f"{self.title} - Swagger UI",
                     oauth2_redirect_url=oauth2_redirect_url,
                     init_oauth=self.swagger_ui_init_oauth,
                     swagger_ui_parameters=self.swagger_ui_parameters,
@@ -1095,7 +1128,7 @@ class FastAPI(Starlette):
                 root_path = req.scope.get("root_path", "").rstrip("/")
                 openapi_url = root_path + self.openapi_url
                 return get_redoc_html(
-                    openapi_url=openapi_url, title=self.title + " - ReDoc"
+                    openapi_url=openapi_url, title=f"{self.title} - ReDoc"
                 )
 
             self.add_route(self.redoc_url, redoc_html, include_in_schema=False)
@@ -1108,7 +1141,7 @@ class FastAPI(Starlette):
     def add_api_route(
         self,
         path: str,
-        endpoint: Callable[..., Coroutine[Any, Any, Response]],
+        endpoint: Callable[..., Any],
         *,
         response_model: Any = Default(None),
         status_code: Optional[int] = None,
@@ -1772,7 +1805,7 @@ class FastAPI(Starlette):
                 This affects the generated OpenAPI (e.g. visible at `/docs`).
 
                 Read more about it in the
-                [FastAPI docs for Query Parameters and String Validations](https://fastapi.tiangolo.com/tutorial/query-params-str-validations/#exclude-from-openapi).
+                [FastAPI docs for Query Parameters and String Validations](https://fastapi.tiangolo.com/tutorial/query-params-str-validations/#exclude-parameters-from-openapi).
                 """
             ),
         ] = True,
@@ -2145,7 +2178,7 @@ class FastAPI(Starlette):
                 This affects the generated OpenAPI (e.g. visible at `/docs`).
 
                 Read more about it in the
-                [FastAPI docs for Query Parameters and String Validations](https://fastapi.tiangolo.com/tutorial/query-params-str-validations/#exclude-from-openapi).
+                [FastAPI docs for Query Parameters and String Validations](https://fastapi.tiangolo.com/tutorial/query-params-str-validations/#exclude-parameters-from-openapi).
                 """
             ),
         ] = True,
@@ -2523,7 +2556,7 @@ class FastAPI(Starlette):
                 This affects the generated OpenAPI (e.g. visible at `/docs`).
 
                 Read more about it in the
-                [FastAPI docs for Query Parameters and String Validations](https://fastapi.tiangolo.com/tutorial/query-params-str-validations/#exclude-from-openapi).
+                [FastAPI docs for Query Parameters and String Validations](https://fastapi.tiangolo.com/tutorial/query-params-str-validations/#exclude-parameters-from-openapi).
                 """
             ),
         ] = True,
@@ -2901,7 +2934,7 @@ class FastAPI(Starlette):
                 This affects the generated OpenAPI (e.g. visible at `/docs`).
 
                 Read more about it in the
-                [FastAPI docs for Query Parameters and String Validations](https://fastapi.tiangolo.com/tutorial/query-params-str-validations/#exclude-from-openapi).
+                [FastAPI docs for Query Parameters and String Validations](https://fastapi.tiangolo.com/tutorial/query-params-str-validations/#exclude-parameters-from-openapi).
                 """
             ),
         ] = True,
@@ -3274,7 +3307,7 @@ class FastAPI(Starlette):
                 This affects the generated OpenAPI (e.g. visible at `/docs`).
 
                 Read more about it in the
-                [FastAPI docs for Query Parameters and String Validations](https://fastapi.tiangolo.com/tutorial/query-params-str-validations/#exclude-from-openapi).
+                [FastAPI docs for Query Parameters and String Validations](https://fastapi.tiangolo.com/tutorial/query-params-str-validations/#exclude-parameters-from-openapi).
                 """
             ),
         ] = True,
@@ -3647,7 +3680,7 @@ class FastAPI(Starlette):
                 This affects the generated OpenAPI (e.g. visible at `/docs`).
 
                 Read more about it in the
-                [FastAPI docs for Query Parameters and String Validations](https://fastapi.tiangolo.com/tutorial/query-params-str-validations/#exclude-from-openapi).
+                [FastAPI docs for Query Parameters and String Validations](https://fastapi.tiangolo.com/tutorial/query-params-str-validations/#exclude-parameters-from-openapi).
                 """
             ),
         ] = True,
@@ -4020,7 +4053,7 @@ class FastAPI(Starlette):
                 This affects the generated OpenAPI (e.g. visible at `/docs`).
 
                 Read more about it in the
-                [FastAPI docs for Query Parameters and String Validations](https://fastapi.tiangolo.com/tutorial/query-params-str-validations/#exclude-from-openapi).
+                [FastAPI docs for Query Parameters and String Validations](https://fastapi.tiangolo.com/tutorial/query-params-str-validations/#exclude-parameters-from-openapi).
                 """
             ),
         ] = True,
@@ -4398,7 +4431,7 @@ class FastAPI(Starlette):
                 This affects the generated OpenAPI (e.g. visible at `/docs`).
 
                 Read more about it in the
-                [FastAPI docs for Query Parameters and String Validations](https://fastapi.tiangolo.com/tutorial/query-params-str-validations/#exclude-from-openapi).
+                [FastAPI docs for Query Parameters and String Validations](https://fastapi.tiangolo.com/tutorial/query-params-str-validations/#exclude-parameters-from-openapi).
                 """
             ),
         ] = True,
@@ -4477,7 +4510,7 @@ class FastAPI(Starlette):
 
         app = FastAPI()
 
-        @app.put("/items/{item_id}")
+        @app.trace("/items/{item_id}")
         def trace_item(item_id: str):
             return None
         ```
@@ -4567,14 +4600,17 @@ class FastAPI(Starlette):
 
         ```python
         import time
+        from typing import Awaitable, Callable
 
-        from fastapi import FastAPI, Request
+        from fastapi import FastAPI, Request, Response
 
         app = FastAPI()
 
 
         @app.middleware("http")
-        async def add_process_time_header(request: Request, call_next):
+        async def add_process_time_header(
+            request: Request, call_next: Callable[[Request], Awaitable[Response]]
+        ) -> Response:
             start_time = time.time()
             response = await call_next(request)
             process_time = time.time() - start_time

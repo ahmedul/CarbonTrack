@@ -1,5 +1,3 @@
-import functools
-import operator
 import sys
 import typing
 from collections.abc import Callable
@@ -60,7 +58,7 @@ if sys.version_info < (3, 9):
     def evaluate_forwardref(type_: ForwardRef, globalns: Any, localns: Any) -> Any:
         return type_._evaluate(globalns, localns)
 
-elif sys.version_info < (3, 12, 4):
+else:
 
     def evaluate_forwardref(type_: ForwardRef, globalns: Any, localns: Any) -> Any:
         # Even though it is the right signature for python 3.9, mypy complains with
@@ -68,13 +66,6 @@ elif sys.version_info < (3, 12, 4):
         # Python 3.13/3.12.4+ made `recursive_guard` a kwarg, so name it explicitly to avoid:
         # TypeError: ForwardRef._evaluate() missing 1 required keyword-only argument: 'recursive_guard'
         return cast(Any, type_)._evaluate(globalns, localns, recursive_guard=set())
-
-else:
-
-    def evaluate_forwardref(type_: ForwardRef, globalns: Any, localns: Any) -> Any:
-        # Pydantic 1.x will not support PEP 695 syntax, but provide `type_params` to avoid
-        # warnings:
-        return cast(Any, type_)._evaluate(globalns, localns, type_params=(), recursive_guard=set())
 
 
 if sys.version_info < (3, 9):
@@ -201,6 +192,9 @@ if sys.version_info < (3, 9):
         return tp
 
 else:
+    from typing import _UnionGenericAlias  # type: ignore
+
+    from typing_extensions import _AnnotatedAlias
 
     def convert_generics(tp: Type[Any]) -> Type[Any]:
         """
@@ -220,7 +214,7 @@ else:
 
         # typing.Annotated needs special treatment
         if origin is Annotated:
-            return Annotated[(convert_generics(args[0]), *args[1:])]  # type: ignore
+            return _AnnotatedAlias(convert_generics(args[0]), args[1:])
 
         # recursively replace `str` instances inside of `GenericAlias` with `ForwardRef(arg)`
         converted = tuple(
@@ -234,7 +228,7 @@ else:
             return TypingGenericAlias(origin, converted)
         elif isinstance(tp, TypesUnionType):
             # recreate types.UnionType (PEP604, Python >= 3.10)
-            return functools.reduce(operator.or_, converted)  # type: ignore
+            return _UnionGenericAlias(origin, converted)
         else:
             try:
                 setattr(tp, '__args__', converted)
@@ -405,10 +399,7 @@ def resolve_annotations(raw_annotations: Dict[str, Type[Any]], module_name: Opti
             else:
                 value = ForwardRef(value, is_argument=False)
         try:
-            if sys.version_info >= (3, 13):
-                value = _eval_type(value, base_globals, None, type_params=())
-            else:
-                value = _eval_type(value, base_globals, None)
+            value = _eval_type(value, base_globals, None)
         except NameError:
             # this is ok, it can be fixed with update_forward_refs
             pass

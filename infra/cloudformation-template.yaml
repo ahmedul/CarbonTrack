@@ -432,19 +432,19 @@ Resources:
         - Key: Application
           Value: CarbonTrack
 
-  # CloudWatch Log Group for API
-  ApiLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub '/aws/lambda/carbontrack-api-${Environment}'
-      RetentionInDays: 30
+  # CloudWatch Log Group for API - Removed to avoid conflict with existing log groups
+  # ApiLogGroup:
+  #   Type: AWS::Logs::LogGroup
+  #   Properties:
+  #     LogGroupName: !Sub '/aws/lambda/carbontrack-api-${Environment}'
+  #     RetentionInDays: 30
 
-  # CloudWatch Log Group for Document Processor
-  DocumentProcessorLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub '/aws/lambda/carbontrack-document-processor-${Environment}'
-      RetentionInDays: 30
+  # CloudWatch Log Group for Document Processor - Removed to avoid conflict with existing log groups
+  # DocumentProcessorLogGroup:
+  #   Type: AWS::Logs::LogGroup
+  #   Properties:
+  #     LogGroupName: !Sub '/aws/lambda/carbontrack-document-processor-${Environment}'
+  #     RetentionInDays: 30
 
 Outputs:
   FrontendURL:

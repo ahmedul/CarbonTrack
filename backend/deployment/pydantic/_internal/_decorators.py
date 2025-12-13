@@ -3,7 +3,7 @@ from __future__ import annotations as _annotations
 
 from collections import deque
 from dataclasses import dataclass, field
-from functools import partial, partialmethod
+from functools import cached_property, partial, partialmethod
 from inspect import Parameter, Signature, isdatadescriptor, ismethoddescriptor, signature
 from itertools import islice
 from typing import TYPE_CHECKING, Any, Callable, ClassVar, Generic, Iterable, TypeVar, Union
@@ -19,12 +19,6 @@ from ._typing_extra import get_function_type_hints
 if TYPE_CHECKING:
     from ..fields import ComputedFieldInfo
     from ..functional_validators import FieldValidatorModes
-
-try:
-    from functools import cached_property  # type: ignore
-except ImportError:
-    # python 3.7
-    cached_property = None
 
 
 @dataclass(**slots_true)
@@ -194,7 +188,7 @@ class PydanticDescriptorProxy(Generic[ReturnType]):
 
     def __set_name__(self, instance: Any, name: str) -> None:
         if hasattr(self.wrapped, '__set_name__'):
-            self.wrapped.__set_name__(instance, name)
+            self.wrapped.__set_name__(instance, name)  # pyright: ignore[reportFunctionMemberAccess]
 
     def __getattr__(self, __name: str) -> Any:
         """Forward checks for __isabstractmethod__ and such."""
@@ -641,18 +635,18 @@ def inspect_model_serializer(serializer: Callable[..., Any], mode: Literal['plai
 def _serializer_info_arg(mode: Literal['plain', 'wrap'], n_positional: int) -> bool | None:
     if mode == 'plain':
         if n_positional == 1:
-            # (__input_value: Any) -> Any
+            # (input_value: Any, /) -> Any
             return False
         elif n_positional == 2:
-            # (__model: Any, __input_value: Any) -> Any
+            # (model: Any, input_value: Any, /) -> Any
             return True
     else:
         assert mode == 'wrap', f"invalid mode: {mode!r}, expected 'plain' or 'wrap'"
         if n_positional == 2:
-            # (__input_value: Any, __serializer: SerializerFunctionWrapHandler) -> Any
+            # (input_value: Any, serializer: SerializerFunctionWrapHandler, /) -> Any
             return False
         elif n_positional == 3:
-            # (__input_value: Any, __serializer: SerializerFunctionWrapHandler, __info: SerializationInfo) -> Any
+            # (input_value: Any, serializer: SerializerFunctionWrapHandler, info: SerializationInfo, /) -> Any
             return True
 
     return None
@@ -725,17 +719,10 @@ def unwrap_wrapped_function(
     Returns:
         The underlying function of the wrapped function.
     """
-    all: set[Any] = {property}
+    all: set[Any] = {property, cached_property}
 
     if unwrap_partial:
         all.update({partial, partialmethod})
-
-    try:
-        from functools import cached_property  # type: ignore
-    except ImportError:
-        cached_property = type('', (), {})
-    else:
-        all.add(cached_property)
 
     if unwrap_class_static_method:
         all.update({staticmethod, classmethod})

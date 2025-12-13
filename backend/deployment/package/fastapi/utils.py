@@ -34,9 +34,9 @@ if TYPE_CHECKING:  # pragma: nocover
     from .routing import APIRoute
 
 # Cache for `create_cloned_field`
-_CLONED_TYPES_CACHE: MutableMapping[Type[BaseModel], Type[BaseModel]] = (
-    WeakKeyDictionary()
-)
+_CLONED_TYPES_CACHE: MutableMapping[
+    Type[BaseModel], Type[BaseModel]
+] = WeakKeyDictionary()
 
 
 def is_body_allowed_for_status_code(status_code: Union[int, str, None]) -> bool:
@@ -60,9 +60,9 @@ def get_path_param_names(path: str) -> Set[str]:
     return set(re.findall("{(.*?)}", path))
 
 
-def create_model_field(
+def create_response_field(
     name: str,
-    type_: Any,
+    type_: Type[Any],
     class_validators: Optional[Dict[str, Validator]] = None,
     default: Optional[Any] = Undefined,
     required: Union[bool, UndefinedType] = Undefined,
@@ -71,6 +71,9 @@ def create_model_field(
     alias: Optional[str] = None,
     mode: Literal["validation", "serialization"] = "validation",
 ) -> ModelField:
+    """
+    Create a new response field. Raises if type_ is invalid.
+    """
     class_validators = class_validators or {}
     if PYDANTIC_V2:
         field_info = field_info or FieldInfo(
@@ -132,12 +135,11 @@ def create_cloned_field(
                 use_type.__fields__[f.name] = create_cloned_field(
                     f, cloned_types=cloned_types
                 )
-    new_field = create_model_field(name=field.name, type_=use_type)
+    new_field = create_response_field(name=field.name, type_=use_type)
     new_field.has_alias = field.has_alias  # type: ignore[attr-defined]
     new_field.alias = field.alias  # type: ignore[misc]
     new_field.class_validators = field.class_validators  # type: ignore[attr-defined]
     new_field.default = field.default  # type: ignore[misc]
-    new_field.default_factory = field.default_factory  # type: ignore[attr-defined]
     new_field.required = field.required  # type: ignore[misc]
     new_field.model_config = field.model_config  # type: ignore[attr-defined]
     new_field.field_info = field.field_info

@@ -252,7 +252,8 @@ def document_collection_method(
                     name='count',
                     type_name='integer',
                     documentation=(
-                        'The limit to the number of resources in the iterable.'
+                        'The limit to the number of resources '
+                        'in the iterable.'
                     ),
                 )
             ],
@@ -270,7 +271,7 @@ def document_collection_method(
                     name='count',
                     type_name='integer',
                     documentation=(
-                        'The number of items returned by each service call'
+                        'The number of items returned by each ' 'service call'
                     ),
                 )
             ],

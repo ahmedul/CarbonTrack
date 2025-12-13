@@ -1,9 +1,7 @@
-import warnings
 from collections import deque
 from copy import copy
 from dataclasses import dataclass, is_dataclass
 from enum import Enum
-from functools import lru_cache
 from typing import (
     Any,
     Callable,
@@ -17,18 +15,18 @@ from typing import (
     Tuple,
     Type,
     Union,
-    cast,
 )
 
 from fastapi.exceptions import RequestErrorModel
 from fastapi.types import IncEx, ModelNameMap, UnionType
 from pydantic import BaseModel, create_model
-from pydantic.version import VERSION as PYDANTIC_VERSION
+from pydantic.version import VERSION as P_VERSION
 from starlette.datastructures import UploadFile
 from typing_extensions import Annotated, Literal, get_args, get_origin
 
-PYDANTIC_VERSION_MINOR_TUPLE = tuple(int(x) for x in PYDANTIC_VERSION.split(".")[:2])
-PYDANTIC_V2 = PYDANTIC_VERSION_MINOR_TUPLE[0] == 2
+# Reassign variable to make it reexported for mypy
+PYDANTIC_VERSION = P_VERSION
+PYDANTIC_V2 = PYDANTIC_VERSION.startswith("2.")
 
 
 sequence_annotation_to_type = {
@@ -46,8 +44,6 @@ sequence_annotation_to_type = {
 }
 
 sequence_types = tuple(sequence_annotation_to_type.keys())
-
-Url: Type[Any]
 
 if PYDANTIC_V2:
     from pydantic import PydanticSchemaGenerationError as PydanticSchemaGenerationError
@@ -74,7 +70,7 @@ if PYDANTIC_V2:
             general_plain_validator_function as with_info_plain_validator_function,  # noqa: F401
         )
 
-    RequiredParam = PydanticUndefined
+    Required = PydanticUndefined
     Undefined = PydanticUndefined
     UndefinedType = PydanticUndefinedType
     evaluate_forwardref = eval_type_lenient
@@ -110,20 +106,9 @@ if PYDANTIC_V2:
             return self.field_info.annotation
 
         def __post_init__(self) -> None:
-            with warnings.catch_warnings():
-                # Pydantic >= 2.12.0 warns about field specific metadata that is unused
-                # (e.g. `TypeAdapter(Annotated[int, Field(alias='b')])`). In some cases, we
-                # end up building the type adapter from a model field annotation so we
-                # need to ignore the warning:
-                if PYDANTIC_VERSION_MINOR_TUPLE >= (2, 12):
-                    from pydantic.warnings import UnsupportedFieldAttributeWarning
-
-                    warnings.simplefilter(
-                        "ignore", category=UnsupportedFieldAttributeWarning
-                    )
-                self._type_adapter: TypeAdapter[Any] = TypeAdapter(
-                    Annotated[self.field_info.annotation, self.field_info]
-                )
+            self._type_adapter: TypeAdapter[Any] = TypeAdapter(
+                Annotated[self.field_info.annotation, self.field_info]
+            )
 
         def get_default(self) -> Any:
             if self.field_info.is_required():
@@ -244,10 +229,6 @@ if PYDANTIC_V2:
         field_mapping, definitions = schema_generator.generate_definitions(
             inputs=inputs
         )
-        for item_def in cast(Dict[str, Dict[str, Any]], definitions).values():
-            if "description" in item_def:
-                item_description = cast(str, item_def["description"]).split("\f")[0]
-                item_def["description"] = item_description
         return field_mapping, definitions  # type: ignore[return-value]
 
     def is_scalar_field(field: ModelField) -> bool:
@@ -298,12 +279,6 @@ if PYDANTIC_V2:
         BodyModel: Type[BaseModel] = create_model(model_name, **field_params)  # type: ignore[call-overload]
         return BodyModel
 
-    def get_model_fields(model: Type[BaseModel]) -> List[ModelField]:
-        return [
-            ModelField(field_info=field_info, name=name)
-            for name, field_info in model.model_fields.items()
-        ]
-
 else:
     from fastapi.openapi.constants import REF_PREFIX as REF_PREFIX
     from pydantic import AnyUrl as Url  # noqa: F401
@@ -331,10 +306,9 @@ else:
     from pydantic.fields import (  # type: ignore[no-redef,attr-defined]
         ModelField as ModelField,  # noqa: F401
     )
-
-    # Keeping old "Required" functionality from Pydantic V1, without
-    # shadowing typing.Required.
-    RequiredParam: Any = Ellipsis  # type: ignore[no-redef]
+    from pydantic.fields import (  # type: ignore[no-redef,attr-defined]
+        Required as Required,  # noqa: F401
+    )
     from pydantic.fields import (  # type: ignore[no-redef,attr-defined]
         Undefined as Undefined,
     )
@@ -405,10 +379,9 @@ else:
             )
             definitions.update(m_definitions)
             model_name = model_name_map[model]
-            definitions[model_name] = m_schema
-        for m_schema in definitions.values():
             if "description" in m_schema:
                 m_schema["description"] = m_schema["description"].split("\f")[0]
+            definitions[model_name] = m_schema
         return definitions
 
     def is_pv1_scalar_field(field: ModelField) -> bool:
@@ -540,9 +513,6 @@ else:
             BodyModel.__fields__[f.name] = f  # type: ignore[index]
         return BodyModel
 
-    def get_model_fields(model: Type[BaseModel]) -> List[ModelField]:
-        return list(model.__fields__.values())  # type: ignore[attr-defined]
-
 
 def _regenerate_error_with_loc(
     *, errors: Sequence[Any], loc_prefix: Tuple[Union[str, int], ...]
@@ -562,12 +532,6 @@ def _annotation_is_sequence(annotation: Union[Type[Any], None]) -> bool:
 
 
 def field_annotation_is_sequence(annotation: Union[Type[Any], None]) -> bool:
-    origin = get_origin(annotation)
-    if origin is Union or origin is UnionType:
-        for arg in get_args(annotation):
-            if field_annotation_is_sequence(arg):
-                return True
-        return False
     return _annotation_is_sequence(annotation) or _annotation_is_sequence(
         get_origin(annotation)
     )
@@ -670,8 +634,3 @@ def is_uploadfile_sequence_annotation(annotation: Any) -> bool:
         is_uploadfile_or_nonable_uploadfile_annotation(sub_annotation)
         for sub_annotation in get_args(annotation)
     )
-
-
-@lru_cache
-def get_cached_model_fields(model: Type[BaseModel]) -> List[ModelField]:
-    return get_model_fields(model)

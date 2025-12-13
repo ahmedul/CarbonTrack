@@ -5,11 +5,10 @@ import os
 import signal
 import sys
 import threading
-from collections.abc import Iterator
 from pathlib import Path
 from socket import socket
 from types import FrameType
-from typing import Callable
+from typing import Callable, Iterator
 
 import click
 
@@ -39,14 +38,14 @@ class BaseReload:
         self.is_restarting = False
         self.reloader_name: str | None = None
 
-    def signal_handler(self, sig: int, frame: FrameType | None) -> None:  # pragma: full coverage
+    def signal_handler(self, sig: int, frame: FrameType | None) -> None:
         """
         A signal handler that is registered with the parent process.
         """
         if sys.platform == "win32" and self.is_restarting:
-            self.is_restarting = False
+            self.is_restarting = False  # pragma: py-not-win32
         else:
-            self.should_exit.set()
+            self.should_exit.set()  # pragma: py-win32
 
     def run(self) -> None:
         self.startup()
@@ -90,10 +89,6 @@ class BaseReload:
             self.is_restarting = True
             assert self.process.pid is not None
             os.kill(self.process.pid, signal.CTRL_C_EVENT)
-
-            # This is a workaround to ensure the Ctrl+C event is processed
-            sys.stdout.write(" ")  # This has to be a non-empty string
-            sys.stdout.flush()
         else:  # pragma: py-win32
             self.process.terminate()
         self.process.join()

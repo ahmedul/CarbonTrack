@@ -14,9 +14,9 @@ NC='\033[0m' # No Color
 
 # Configuration
 STACK_NAME="carbontrack-production"
-REGION="us-east-1"
-DOMAIN_NAME="carbontrack.com"  # Change this to your domain
-CERTIFICATE_ARN=""  # Will be set from AWS Certificate Manager
+REGION="us-east-1"  # Changed back to us-east-1 where production stack exists
+DOMAIN_NAME="carbontracksystem.com"  # Change this to your domain
+CERTIFICATE_ARN="arn:aws:acm:us-east-1:092085372269:certificate/7d88f9f6-6ce5-4557-b084-39898d48eafe"  # Existing cert
 ENVIRONMENT="production"
 
 # Print colored output
@@ -63,7 +63,7 @@ validate_domain_certificate() {
         --query "CertificateSummary[?DomainName=='${DOMAIN_NAME}'].CertificateArn" \
         --output text 2>/dev/null || echo "")
     
-    if [ -z "$CERTIFICATE_ARN" ]; then
+    if [ -z "$CERTIFICATE_ARN" ] || [ "$CERTIFICATE_ARN" == "None" ]; then
         print_warning "No SSL certificate found for ${DOMAIN_NAME}"
         print_status "You can either:"
         echo "  1. Create a certificate in AWS Certificate Manager (ACM) for ${DOMAIN_NAME}"
@@ -76,9 +76,9 @@ validate_domain_certificate() {
             exit 1
         fi
         
-        # Use a placeholder certificate ARN
-        CERTIFICATE_ARN="arn:aws:acm:us-east-1:123456789012:certificate/placeholder"
-        print_warning "Using placeholder certificate. CloudFront will use default domain."
+        # Clear certificate ARN to disable custom domain in CloudFormation
+        CERTIFICATE_ARN=""
+        print_warning "Using default CloudFront domain."
     else
         print_success "Found SSL certificate: ${CERTIFICATE_ARN}"
     fi
@@ -196,10 +196,21 @@ deploy_frontend() {
     
     # Replace API URL in frontend files
     cd ${BUILD_DIR}
-    if [ -f "index.html" ]; then
-        sed -i "s|http://localhost:8000|${API_URL}|g" index.html
-        sed -i "s|API_BASE_URL = 'http://localhost:8000'|API_BASE_URL = '${API_URL}'|g" index.html
-    fi
+    
+    # Function to update API URL in a file
+    update_api_url() {
+        local file=$1
+        if [ -f "$file" ]; then
+            sed -i "s|http://localhost:8000|${API_URL}|g" "$file"
+            sed -i "s|API_BASE_URL = 'http://localhost:8000'|API_BASE_URL = '${API_URL}'|g" "$file"
+        fi
+    }
+    
+    # Update root index.html (Landing Page)
+    update_api_url "index.html"
+    
+    # Update app/index.html (Vue App)
+    update_api_url "app/index.html"
     
     # Sync to S3
     aws s3 sync . s3://${FRONTEND_BUCKET} \

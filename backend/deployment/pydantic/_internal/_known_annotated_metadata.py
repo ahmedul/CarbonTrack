@@ -19,7 +19,15 @@ SEQUENCE_CONSTRAINTS = {'min_length', 'max_length'}
 INEQUALITY = {'le', 'ge', 'lt', 'gt'}
 NUMERIC_CONSTRAINTS = {'multiple_of', 'allow_inf_nan', *INEQUALITY}
 
-STR_CONSTRAINTS = {*SEQUENCE_CONSTRAINTS, *STRICT, 'strip_whitespace', 'to_lower', 'to_upper', 'pattern'}
+STR_CONSTRAINTS = {
+    *SEQUENCE_CONSTRAINTS,
+    *STRICT,
+    'strip_whitespace',
+    'to_lower',
+    'to_upper',
+    'pattern',
+    'coerce_numbers_to_str',
+}
 BYTES_CONSTRAINTS = {*SEQUENCE_CONSTRAINTS, *STRICT}
 
 LIST_CONSTRAINTS = {*SEQUENCE_CONSTRAINTS, *STRICT}
@@ -37,6 +45,7 @@ DATE_TIME_CONSTRAINTS = {*NUMERIC_CONSTRAINTS, *STRICT}
 TIMEDELTA_CONSTRAINTS = {*NUMERIC_CONSTRAINTS, *STRICT}
 TIME_CONSTRAINTS = {*NUMERIC_CONSTRAINTS, *STRICT}
 LAX_OR_STRICT_CONSTRAINTS = STRICT
+ENUM_CONSTRAINTS = STRICT
 
 UNION_CONSTRAINTS = {'union_mode'}
 URL_CONSTRAINTS = {
@@ -89,6 +98,8 @@ for constraint in UUID_CONSTRAINTS:
     CONSTRAINTS_TO_ALLOWED_SCHEMAS[constraint].update(('uuid',))
 for constraint in LAX_OR_STRICT_CONSTRAINTS:
     CONSTRAINTS_TO_ALLOWED_SCHEMAS[constraint].update(('lax-or-strict',))
+for constraint in ENUM_CONSTRAINTS:
+    CONSTRAINTS_TO_ALLOWED_SCHEMAS[constraint].update(('enum',))
 
 
 def add_js_update_schema(s: cs.CoreSchema, f: Callable[[], dict[str, Any]]) -> None:
@@ -184,6 +195,12 @@ def apply_known_metadata(annotation: Any, schema: CoreSchema) -> CoreSchema | No
             raise ValueError(f'Unknown constraint {constraint}')
         allowed_schemas = CONSTRAINTS_TO_ALLOWED_SCHEMAS[constraint]
 
+        # if it becomes necessary to handle more than one constraint
+        # in this recursive case with function-after or function-wrap, we should refactor
+        if schema_type in {'function-before', 'function-wrap', 'function-after'} and constraint == 'strict':
+            schema['schema'] = apply_known_metadata(annotation, schema['schema'])  # type: ignore  # schema is function-after schema
+            return schema
+
         if schema_type in allowed_schemas:
             if constraint == 'union_mode' and schema_type == 'union':
                 schema['mode'] = value  # type: ignore  # schema is UnionSchema
@@ -275,6 +292,13 @@ def apply_known_metadata(annotation: Any, schema: CoreSchema) -> CoreSchema | No
             return cs.no_info_after_validator_function(
                 partial(_validators.max_length_validator, max_length=annotation.max_length),
                 schema,
+            )
+        elif constraint == 'coerce_numbers_to_str':
+            return cs.chain_schema(
+                [
+                    schema,
+                    cs.str_schema(coerce_numbers_to_str=True),  # type: ignore
+                ]
             )
         else:
             raise RuntimeError(f'Unable to apply constraint {constraint} to schema {schema_type}')

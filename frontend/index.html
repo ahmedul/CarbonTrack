@@ -3,63 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CarbonTrack - Track Your Carbon Footprint</title>
-    <link rel="icon" type="image/svg+xml" href="./assets/logo-mark.svg" />
-            <!-- build: marker 2025-10-20 -->
-            <script>
-            // Optional runtime override; CI will inject this during deploy from vars.PRODUCTION_API_URL
-            window.API_BASE_URL = window.API_BASE_URL || undefined;
-        </script>
-    
-    <!-- Vue.js 3 CDN -->
-    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-    
-    <!-- Tailwind CSS for styling -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- Chart.js for data visualization -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    
-    <!-- Axios for API calls -->
-    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <title>CarbonTrack - Enterprise Carbon Intelligence for the CSRD Era</title>
+    <meta name="description" content="Comprehensive carbon tracking and EU CSRD compliance reporting for forward-thinking organizations. Production-ready MVP with enterprise features launching Q1 2026.">
     
     <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     
-    <!-- Google Analytics 4 -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
-    <script>
-        window.dataLayer = window.dataLayer || [];
-        function gtag(){dataLayer.push(arguments);}
-        gtag('js', new Date());
-        gtag('config', 'G-XXXXXXXXXX', {
-            'send_page_view': true,
-            'cookie_flags': 'SameSite=None;Secure'
-        });
-    </script>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
     
     <style>
-        [v-cloak] { display: none !important; }
-        
-        :root {
-            --primary-50: #eff6ff;
-            --primary-100: #dbeafe;
-            --primary-200: #bfdbfe;
-            --primary-300: #93c5fd;
-            --primary-400: #60a5fa;
-            --primary-500: #3b82f6;
-            --primary-600: #2563eb;
-            --primary-700: #1d4ed8;
-            --primary-800: #1e40af;
-            --primary-900: #1e3a8a;
-        }
-        
         * {
             font-family: 'Inter', sans-serif;
         }
         
         .gradient-bg {
-            background: linear-gradient(135deg, var(--primary-600) 0%, var(--primary-800) 100%);
+            background: linear-gradient(135deg, #1e40af 0%, #1e3a8a 50%, #312e81 100%);
+        }
+        
+        .gradient-text {
+            background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
         }
         
         .glass-effect {
@@ -68,1385 +34,816 @@
             border: 1px solid rgba(255, 255, 255, 0.2);
         }
         
-        .card-hover {
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        .feature-card {
+            transition: all 0.3s ease;
         }
         
-        .card-hover:hover {
+        .feature-card:hover {
             transform: translateY(-8px);
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+        }
+        
+        .pricing-card {
+            transition: all 0.3s ease;
+            border: 2px solid #e5e7eb;
+        }
+        
+        .pricing-card:hover {
+            transform: scale(1.05);
+            border-color: #3b82f6;
+            box-shadow: 0 20px 40px rgba(59, 130, 246, 0.2);
+        }
+        
+        .pricing-card.featured {
+            border-color: #3b82f6;
+            box-shadow: 0 10px 30px rgba(59, 130, 246, 0.2);
+            transform: scale(1.05);
         }
         
         .btn-primary {
-            background: linear-gradient(135deg, var(--primary-500) 0%, var(--primary-600) 100%);
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
             transition: all 0.2s ease;
         }
         
         .btn-primary:hover {
-            background: linear-gradient(135deg, var(--primary-600) 0%, var(--primary-700) 100%);
-            transform: translateY(-1px);
-            box-shadow: 0 10px 20px rgba(59, 130, 246, 0.4);
+            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(59, 130, 246, 0.4);
         }
         
-        .input-field {
-            transition: all 0.2s ease;
-            border: 2px solid #e5e7eb;
+        .section-divider {
+            height: 2px;
+            background: linear-gradient(90deg, transparent, #e5e7eb, transparent);
         }
         
-        .input-field:focus {
-            border-color: var(--primary-500);
-            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-20px); }
         }
         
-        .stats-card {
-            background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-            border-left: 4px solid var(--primary-500);
+        .float-animation {
+            animation: float 6s ease-in-out infinite;
         }
         
-        .fade-in {
-            animation: fadeIn 0.5s ease-in;
-        }
-        
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        
-        .pulse-dot {
+        .timeline-item {
             position: relative;
+            padding-left: 2rem;
         }
         
-        .pulse-dot::before {
+        .timeline-item::before {
             content: '';
             position: absolute;
-            top: 50%;
-            left: 50%;
-            width: 100%;
-            height: 100%;
-            background: var(--primary-500);
+            left: 0;
+            top: 0.5rem;
+            width: 12px;
+            height: 12px;
             border-radius: 50%;
-            transform: translate(-50%, -50%);
-            animation: pulse 2s infinite;
+            background: #3b82f6;
+            border: 3px solid white;
+            box-shadow: 0 0 0 2px #3b82f6;
         }
         
-        @keyframes pulse {
-            0% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-            70% { opacity: 0; transform: translate(-50%, -50%) scale(1.4); }
-            100% { opacity: 0; transform: translate(-50%, -50%) scale(1); }
-        }
-        
-        /* Enhanced animations and effects */
-        .stats-card {
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .stats-card::before {
+        .timeline-item::after {
             content: '';
             position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
-            transition: left 0.5s;
+            left: 5px;
+            top: 1.5rem;
+            width: 2px;
+            height: calc(100% + 1rem);
+            background: #e5e7eb;
         }
         
-        .stats-card:hover::before {
-            left: 100%;
-        }
-        
-        .btn-primary::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
-            transition: left 0.5s;
-        }
-        
-        .btn-primary:hover::before {
-            left: 100%;
-        }
-        
-        .slide-up {
-            animation: slideUp 0.6s ease-out;
-        }
-        
-        @keyframes slideUp {
-            from { opacity: 0; transform: translateY(30px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        
-        .bounce-in {
-            animation: bounceIn 0.8s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-        }
-        
-        @keyframes bounceIn {
-            0% {
-                opacity: 0;
-                transform: scale(0.3) translateY(100px);
-            }
-            50% {
-                opacity: 1;
-                transform: scale(1.05);
-            }
-            70% { transform: scale(0.9); }
-            100% {
-                opacity: 1;
-                transform: scale(1) translateY(0);
-            }
-        }
-        
-        .line-clamp-2 {
-            display: -webkit-box;
-            -webkit-line-clamp: 2;
-            line-clamp: 2;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
+        .timeline-item:last-child::after {
+            display: none;
         }
     </style>
 </head>
 <body class="bg-gray-50">
-    <div id="app" v-cloak>
-        <!-- Debug: Vue app container -->
-        <!-- Navigation -->
-        <nav class="gradient-bg text-white shadow-2xl relative overflow-hidden">
-            <div class="absolute inset-0 bg-gradient-to-r from-blue-600/20 to-blue-800/20"></div>
-            <div class="container mx-auto px-6 relative z-10">
-                <div class="flex justify-between items-center h-20">
-                    <div class="flex items-center space-x-3 cursor-pointer" @click="navigateToHome()">
-                        <div class="w-10 h-10 rounded-xl overflow-hidden ring-2 ring-white/30">
-                            <img src="./assets/logo-mark.svg" alt="CarbonTrack logo" class="w-10 h-10"/>
-                        </div>
-                        <div>
-                            <h1 class="text-2xl font-bold tracking-tight hover:text-blue-100 transition-colors">CarbonTrack</h1>
-                            <p class="text-blue-100 text-xs font-medium">Environmental Impact Tracker</p>
-                        </div>
+    <!-- Navigation -->
+    <nav class="gradient-bg text-white sticky top-0 z-50 shadow-2xl">
+        <div class="container mx-auto px-6 py-4">
+            <div class="flex justify-between items-center">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 bg-white rounded-xl flex items-center justify-center">
+                        <span class="text-2xl">🌍</span>
                     </div>
-                    <div class="flex space-x-2">
-                        <!-- Authenticated User Menu -->
-                        <template v-if="isAuthenticated">
-                            <button @click="currentView = 'dashboard'" 
-                                    :class="{'bg-white/30 shadow-lg': currentView === 'dashboard'}"
-                                    class="px-4 py-2.5 rounded-xl hover:bg-white/20 transition-all duration-200 font-medium text-sm backdrop-blur-sm">
-                                📊 Dashboard
-                            </button>
-                            <button @click="currentView = 'input'" 
-                                    :class="{'bg-white/30 shadow-lg': currentView === 'input'}"
-                                    class="px-4 py-2.5 rounded-xl hover:bg-white/20 transition-all duration-200 font-medium text-sm backdrop-blur-sm">
-                                ➕ Add Entry
-                            </button>
-                            <button @click="currentView = 'recommendations'" 
-                                    :class="{'bg-white/30 shadow-lg': currentView === 'recommendations'}"
-                                    class="px-4 py-2.5 rounded-xl hover:bg-white/20 transition-all duration-200 font-medium text-sm backdrop-blur-sm">
-                                💡 Recommendations
-                            </button>
-                            <button @click="currentView = 'gamification'" 
-                                    :class="{'bg-white/30 shadow-lg': currentView === 'gamification'}"
-                                    class="px-4 py-2.5 rounded-xl hover:bg-white/20 transition-all duration-200 font-medium text-sm backdrop-blur-sm">
-                                🏆 Achievements
-                            </button>
-                            <button @click="currentView = 'profile'" 
-                                    :class="{'bg-white/30 shadow-lg': currentView === 'profile'}"
-                                    class="px-4 py-2.5 rounded-xl hover:bg-white/20 transition-all duration-200 font-medium text-sm backdrop-blur-sm">
-                                👤 Profile
-                            </button>
-                            <!-- Admin Panel Button (only for admin users) -->
-                            <button v-if="userProfile.role === 'admin'" @click="currentView = 'admin'" 
-                                    :class="{'bg-white/30 shadow-lg': currentView === 'admin'}"
-                                    class="px-4 py-2.5 rounded-xl hover:bg-white/20 transition-all duration-200 font-medium text-sm backdrop-blur-sm border border-yellow-300/50">
-                                ⚙️ Admin
-                            </button>
-                            <!-- User Name Display -->
-                            <div class="flex items-center px-4 py-2.5 rounded-xl bg-white/10 backdrop-blur-sm border border-white/20">
-                                <span class="text-sm font-medium">👋 {{ userProfile.full_name || userProfile.email || 'User' }}</span>
-                                <span v-if="userProfile.role === 'admin'" class="ml-2 px-2 py-0.5 bg-yellow-400/20 border border-yellow-300/50 rounded-md text-xs font-bold text-yellow-100">ADMIN</span>
-                            </div>
-                            <button @click="logout" 
-                                    class="px-4 py-2.5 rounded-xl bg-red-500/80 hover:bg-red-600/80 transition-all duration-200 font-medium text-sm backdrop-blur-sm">
-                                🚪 Logout
-                            </button>
-                        </template>
-                        
-                        <!-- Unauthenticated User Menu -->
-                        <template v-else>
-                            <button @click="currentView = 'login'" 
-                                    :class="{'bg-white/30 shadow-lg': currentView === 'login'}"
-                                    class="px-4 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 transition-all duration-200 font-medium text-sm backdrop-blur-sm border border-white/30">
-                                🔐 Login
-                            </button>
-                            <button @click="currentView = 'register'" 
-                                    :class="{'bg-white/30 shadow-lg': currentView === 'register'}"
-                                    class="px-4 py-2.5 rounded-xl bg-green-500/80 hover:bg-green-600/80 transition-all duration-200 font-medium text-sm backdrop-blur-sm border border-green-300/50">
-                                � Register
-                            </button>
-                        </template>
+                    <div>
+                        <h1 class="text-2xl font-bold">CarbonTrack</h1>
+                        <p class="text-xs text-blue-200">CSRD Compliance Made Simple</p>
                     </div>
                 </div>
-            </div>
-        </nav>
-
-        <!-- Global Notifications -->
-        <div v-if="notifications.length > 0" class="fixed top-20 right-4 z-50 space-y-2 max-w-md">
-            <div v-for="notification in notifications" :key="notification.id" 
-                 class="transform transition-all duration-500 ease-in-out"
-                 :class="['p-4 rounded-xl shadow-lg border-l-4 backdrop-blur-sm', 
-                         notification.type === 'success' ? 'bg-green-50/95 border-green-500 text-green-900' : 
-                         notification.type === 'error' ? 'bg-red-50/95 border-red-500 text-red-900' : 
-                         'bg-blue-50/95 border-blue-500 text-blue-900']">
-                <div class="flex items-start">
-                    <div class="mr-3 text-lg flex-shrink-0">
-                        <span v-if="notification.type === 'success'">🎉</span>
-                        <span v-else-if="notification.type === 'error'">❌</span>
-                        <span v-else>ℹ️</span>
-                    </div>
-                    <div class="flex-1 min-w-0">
-                        <div class="font-semibold text-sm leading-tight">{{ notification.message }}</div>
-                    </div>
-                    <button @click="removeNotification(notification.id)" 
-                            class="ml-3 flex-shrink-0 text-lg opacity-50 hover:opacity-100 transition-opacity focus:outline-none">
-                        ×
-                    </button>
+                <div class="hidden md:flex space-x-6 items-center">
+                    <a href="#features" class="hover:text-blue-200 transition">Features</a>
+                    <a href="#csrd" class="hover:text-blue-200 transition">CSRD Module</a>
+                    <a href="#pricing" class="hover:text-blue-200 transition">Pricing</a>
+                    <a href="#roadmap" class="hover:text-blue-200 transition">Roadmap</a>
+                    <a href="/app/" class="bg-white text-blue-600 px-6 py-2 rounded-lg font-semibold hover:bg-blue-50 transition">
+                        Sign In / Register
+                    </a>
                 </div>
             </div>
         </div>
+    </nav>
 
-        <!-- Main Content -->
-        <div class="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-100">
-        <div class="container mx-auto px-6 py-12">
-            <!-- Login View -->
-            <div v-if="currentView === 'login' && !isAuthenticated" class="max-w-md mx-auto fade-in">
-                <div class="glass-effect rounded-2xl shadow-2xl p-8 card-hover">
-                    <div class="text-center mb-8">
-                        <div class="w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <span class="text-2xl text-white">🔐</span>
-                        </div>
-                        <h2 class="text-3xl font-bold text-gray-800 mb-2">Welcome Back</h2>
-                        <p class="text-gray-600">Sign in to your CarbonTrack account</p>
-                    </div>
-                    <form @submit.prevent="login" class="space-y-6">
-                        <div>
-                            <label class="block text-gray-700 text-sm font-semibold mb-3">Email Address</label>
-                            <input v-model="loginForm.email" type="email" required
-                                   placeholder="Enter your email"
-                                   class="w-full px-4 py-3 input-field rounded-xl focus:outline-none bg-white/70">
-                        </div>
-                        <div>
-                            <label class="block text-gray-700 text-sm font-semibold mb-3">Password</label>
-                            <input v-model="loginForm.password" type="password" required
-                                   placeholder="Enter your password"
-                                   class="w-full px-4 py-3 input-field rounded-xl focus:outline-none bg-white/70">
-                        </div>
-                        <button type="submit" class="w-full btn-primary text-white py-3 rounded-xl font-semibold text-lg shadow-lg">
-                            Sign In
-                        </button>
-                    </form>
-                    <div class="mt-6 pt-6 border-t border-gray-200 text-center">
-                        <div class="text-sm text-gray-600 space-y-1">
-                            <p><strong>Demo User:</strong> demo@carbontrack.dev / password123</p>
-                            <p><strong>Admin User:</strong> ahmedulkabir55@gmail.com</p>
-                        </div>
-                        <p class="text-sm text-gray-500 mt-2">
-                            Don't have an account? 
-                            <button @click="currentView = 'register'" class="text-blue-600 hover:text-blue-800 font-semibold">
-                                Sign up here
-                            </button>
-                        </p>
-                        
-                        <!-- Debug buttons (temporary) -->
-                        <div class="mt-4 p-3 bg-gray-100 rounded-lg text-xs">
-                            <p><strong>Debug:</strong> Auth: {{ isAuthenticated }}, View: {{ currentView }}</p>
-                            <button @click="resetLoginState" class="mt-1 px-2 py-1 bg-red-500 text-white text-xs rounded">Reset Login State</button>
-                        </div>
-                    </div>
+    <!-- Hero Section -->
+    <section class="gradient-bg text-white py-20 relative overflow-hidden">
+        <div class="absolute inset-0 opacity-10">
+            <div class="absolute top-20 left-10 w-72 h-72 bg-blue-400 rounded-full filter blur-3xl float-animation"></div>
+            <div class="absolute bottom-20 right-10 w-96 h-96 bg-purple-400 rounded-full filter blur-3xl float-animation" style="animation-delay: 2s;"></div>
+        </div>
+        
+        <div class="container mx-auto px-6 relative z-10">
+            <div class="max-w-4xl mx-auto text-center">
+                <div class="inline-block bg-blue-500/30 backdrop-blur-sm px-6 py-2 rounded-full text-sm font-semibold mb-6 border border-blue-400/50">
+                    🚀 CSRD Compliance Module Launching Q1 2026
                 </div>
-            </div>
-
-            <!-- Registration View -->
-            <div v-if="currentView === 'register' && !isAuthenticated" class="max-w-lg mx-auto fade-in">
-                <div class="glass-effect rounded-2xl shadow-2xl p-8 card-hover">
-                    <div class="text-center mb-8">
-                        <div class="w-16 h-16 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <span class="text-2xl text-white">📝</span>
-                        </div>
-                        <h2 class="text-3xl font-bold text-gray-800 mb-2">Join CarbonTrack</h2>
-                        <p class="text-gray-600">Create your account to start tracking your carbon footprint</p>
-                    </div>
-                    <form @submit.prevent="register" class="space-y-6">
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-gray-700 text-sm font-semibold mb-3">First Name</label>
-                                <input v-model="registerForm.firstName" type="text" required
-                                       placeholder="Enter first name"
-                                       class="w-full px-4 py-3 input-field rounded-xl focus:outline-none bg-white/70">
-                            </div>
-                            <div>
-                                <label class="block text-gray-700 text-sm font-semibold mb-3">Last Name</label>
-                                <input v-model="registerForm.lastName" type="text" required
-                                       placeholder="Enter last name"
-                                       class="w-full px-4 py-3 input-field rounded-xl focus:outline-none bg-white/70">
-                            </div>
-                        </div>
-                        <div>
-                            <label class="block text-gray-700 text-sm font-semibold mb-3">Email Address</label>
-                            <input v-model="registerForm.email" type="email" required
-                                   placeholder="Enter your email"
-                                   class="w-full px-4 py-3 input-field rounded-xl focus:outline-none bg-white/70">
-                        </div>
-                        <div>
-                            <label class="block text-gray-700 text-sm font-semibold mb-3">Password</label>
-                            <input v-model="registerForm.password" type="password" required
-                                   placeholder="Create a strong password"
-                                   class="w-full px-4 py-3 input-field rounded-xl focus:outline-none bg-white/70">
-                        </div>
-                        <div>
-                            <label class="block text-gray-700 text-sm font-semibold mb-3">Confirm Password</label>
-                            <input v-model="registerForm.confirmPassword" type="password" required
-                                   placeholder="Confirm your password"
-                                   class="w-full px-4 py-3 input-field rounded-xl focus:outline-none bg-white/70">
-                        </div>
-                        <div>
-                            <label class="block text-gray-700 text-sm font-semibold mb-3">Organization (Optional)</label>
-                            <input v-model="registerForm.organization" type="text"
-                                   placeholder="Company or organization name"
-                                   class="w-full px-4 py-3 input-field rounded-xl focus:outline-none bg-white/70">
-                        </div>
-                        <div class="flex items-start space-x-3">
-                            <input v-model="registerForm.acceptTerms" type="checkbox" required class="mt-1 w-4 h-4 text-green-600">
-                            <label class="text-sm text-gray-700">
-                                I agree to the <a href="#" class="text-green-600 hover:text-green-800 font-semibold">Terms of Service</a> 
-                                and <a href="#" class="text-green-600 hover:text-green-800 font-semibold">Privacy Policy</a>
-                            </label>
-                        </div>
-                        <button type="submit" :disabled="!isRegistrationValid || loading" 
-                                :class="{'opacity-50 cursor-not-allowed': !isRegistrationValid || loading}"
-                                class="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white py-3 rounded-xl font-semibold text-lg shadow-lg transition-all duration-200">
-                            <span v-if="loading">⏳ Creating Account...</span>
-                            <span v-else>Create Account</span>
-                        </button>
-                    </form>
-                    <div class="mt-6 pt-6 border-t border-gray-200 text-center">
-                        <p class="text-sm text-gray-600">
-                            Already have an account? 
-                            <button @click="currentView = 'login'" class="text-blue-600 hover:text-blue-800 font-semibold">
-                                Sign in here
-                            </button>
-                        </p>
-                        <div class="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                            <p class="text-xs text-yellow-800">
-                                <span class="font-semibold">Note:</span> New registrations require admin approval before access is granted.
-                            </p>
-                        </div>
-                        
-                        <!-- Success Message Area -->
-                        <div v-if="notifications.length > 0" class="mt-4 space-y-2">
-                            <div v-for="notification in notifications" :key="notification.id" 
-                                 :class="['p-6 rounded-xl border-2 shadow-lg', 
-                                         notification.type === 'success' ? 'bg-green-50 border-green-300 text-green-900' : 
-                                         notification.type === 'error' ? 'bg-red-50 border-red-300 text-red-900' : 
-                                         'bg-blue-50 border-blue-300 text-blue-900']">
-                                <div class="flex items-center">
-                                    <div class="mr-4 text-2xl">
-                                        <span v-if="notification.type === 'success'">🎉</span>
-                                        <span v-else-if="notification.type === 'error'">❌</span>
-                                        <span v-else>ℹ️</span>
-                                    </div>
-                                    <div class="flex-1">
-                                        <div class="font-semibold text-lg">{{ notification.message }}</div>
-                                        <div v-if="notification.type === 'success'" class="text-sm mt-1 opacity-75">
-                                            You will receive an email confirmation once your account is approved by an administrator.
-                                        </div>
-                                    </div>
-                                    <button @click="removeNotification(notification.id)" 
-                                            class="ml-4 text-xl opacity-50 hover:opacity-100 transition-opacity">
-                                        ×
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                        
-
-                    </div>
-                </div>
-            </div>
-
-            <!-- Dashboard View -->
-            <div v-if="currentView === 'dashboard' && isAuthenticated" class="fade-in">
-            <!-- Dashboard Header -->
-            <div class="text-center mb-12">
-                <h1 class="text-4xl md:text-5xl font-bold bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent mb-4">
-                    Your Carbon Dashboard
+                
+                <h1 class="text-5xl md:text-6xl font-bold mb-6 leading-tight">
+                    Enterprise Carbon Intelligence<br/>
+                    <span class="text-blue-300">for the CSRD Era</span>
                 </h1>
-                <p class="text-lg text-gray-600 max-w-2xl mx-auto">
-                    Track your environmental impact and progress towards a sustainable future
+                
+                <p class="text-xl md:text-2xl text-blue-100 mb-12 leading-relaxed">
+                    Comprehensive carbon tracking and EU CSRD compliance reporting<br/>
+                    for forward-thinking organizations
                 </p>
-            </div>                <!-- Stats Cards -->
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
-                    <!-- Total Emissions Card -->
-                    <div class="group stats-card glass-effect rounded-2xl shadow-xl p-8 card-hover transform hover:-translate-y-2 transition-all duration-300">
-                        <div class="flex items-center justify-between mb-4">
-                            <div class="w-16 h-16 bg-gradient-to-br from-red-400 to-red-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:shadow-red-200 transition-all duration-300">
-                                <span class="text-2xl text-white">🔥</span>
-                            </div>
-                            <div class="text-right">
-                                <div class="w-2 h-2 bg-red-400 rounded-full animate-pulse"></div>
-                            </div>
-                        </div>
-                        <div>
-                            <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wider mb-2">Total Emissions</h3>
-                            <p class="text-3xl md:text-4xl font-bold text-gray-800 mb-2">{{ displayTotalEmissions() }} kg CO₂</p>
-                            <div class="flex items-center text-sm">
-                                <span class="text-red-600 font-medium">All time footprint</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Monthly Emissions Card -->
-                    <div class="group stats-card glass-effect rounded-2xl shadow-xl p-8 card-hover transform hover:-translate-y-2 transition-all duration-300">
-                        <div class="flex items-center justify-between mb-4">
-                            <div class="w-16 h-16 bg-gradient-to-br from-orange-400 to-orange-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:shadow-orange-200 transition-all duration-300">
-                                <span class="text-2xl text-white">📅</span>
-                            </div>
-                            <div class="text-right">
-                                <div class="w-2 h-2 bg-orange-400 rounded-full animate-pulse"></div>
-                            </div>
-                        </div>
-                        <div>
-                            <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wider mb-2">This Month</h3>
-                            <p class="text-3xl md:text-4xl font-bold text-gray-800 mb-2">{{ displayMonthlyEmissions() }} kg CO₂</p>
-                            <div class="flex items-center text-sm">
-                                <span class="text-orange-600 font-medium">September 2025</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Goal Progress Card -->
-                    <div class="group stats-card glass-effect rounded-2xl shadow-xl p-8 card-hover transform hover:-translate-y-2 transition-all duration-300">
-                        <div class="flex items-center justify-between mb-4">
-                            <div class="w-16 h-16 bg-gradient-to-br from-green-400 to-green-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:shadow-green-200 transition-all duration-300">
-                                <span class="text-2xl text-white">🎯</span>
-                            </div>
-                            <div class="text-right">
-                                <div class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                            </div>
-                        </div>
-                        <div>
-                            <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wider mb-2">Goal Progress</h3>
-                            <p class="text-3xl md:text-4xl font-bold text-gray-800 mb-3">{{ goalProgress }}%</p>
-                            <div class="w-full bg-gray-200 rounded-full h-3 mb-2 overflow-hidden">
-                                <div class="bg-gradient-to-r from-green-400 to-green-500 h-3 rounded-full transition-all duration-1000 ease-out shadow-sm" 
-                                     :style="'width: ' + Math.min(goalProgress, 100) + '%'"></div>
-                            </div>
-                            <div class="flex items-center justify-between text-sm">
-                                <span class="text-green-600 font-medium">300kg target</span>
-                                <span class="text-gray-500">{{ Math.min(goalProgress, 100) }}%</span>
-                            </div>
-                        </div>
-                    </div>
+                
+                <div class="flex flex-col sm:flex-row gap-4 justify-center mb-12">
+                    <a href="/app/" class="bg-white text-blue-600 px-8 py-4 rounded-xl font-bold text-lg hover:bg-blue-50 transition shadow-2xl">
+                        Start Free Trial →
+                    </a>
+                    <a href="#csrd" class="bg-blue-500/30 backdrop-blur-sm text-white px-8 py-4 rounded-xl font-bold text-lg hover:bg-blue-500/50 transition border border-blue-400/50">
+                        View CSRD Demo
+                    </a>
                 </div>
-
-                <!-- Chart -->
-                <div class="glass-effect rounded-2xl shadow-2xl p-6 md:p-8 mb-12 card-hover">
-                    <div class="flex items-center justify-between mb-6">
-                        <div>
-                            <h3 class="text-xl md:text-2xl font-bold text-gray-800">Emissions Trend</h3>
-                            <p class="text-sm md:text-base text-gray-600 mt-1">Your carbon footprint over time</p>
-                        </div>
-                        <div class="w-10 h-10 bg-gradient-to-br from-blue-400 to-blue-500 rounded-xl flex items-center justify-center">
-                            <span class="text-white">📈</span>
-                        </div>
+                
+                <!-- Social Proof -->
+                <div class="grid grid-cols-3 gap-8 max-w-2xl mx-auto text-center">
+                    <div>
+                        <div class="text-4xl font-bold text-blue-300">50K+</div>
+                        <div class="text-sm text-blue-200">EU Companies Must Comply</div>
                     </div>
-                    <div class="relative" style="height: 300px; max-height: 400px;">
-                        <canvas id="emissionsChart" style="max-height: 100%; width: 100%;"></canvas>
+                    <div>
+                        <div class="text-4xl font-bold text-blue-300">85%</div>
+                        <div class="text-sm text-blue-200">Cost Savings vs Consultants</div>
                     </div>
-                </div>
-
-                <!-- Recent Entries -->
-                <div class="glass-effect rounded-2xl shadow-2xl p-6 md:p-8 card-hover">
-                    <div class="flex items-center justify-between mb-8">
-                        <div>
-                            <h3 class="text-2xl md:text-3xl font-bold text-gray-800">Recent Activity</h3>
-                            <p class="text-sm md:text-base text-gray-600 mt-1">Your latest carbon emission entries</p>
-                        </div>
-                        <div class="w-12 h-12 bg-gradient-to-br from-blue-400 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg">
-                            <span class="text-white text-xl">⚡</span>
-                        </div>
+                    <div>
+                        <div class="text-4xl font-bold text-blue-300">1 Day</div>
+                        <div class="text-sm text-blue-200">Time to Deploy</div>
                     </div>
-                    
-                    <div v-if="emissions.length === 0" class="text-center py-16">
-                        <div class="w-20 h-20 bg-gradient-to-br from-blue-100 to-blue-200 rounded-full flex items-center justify-center mx-auto mb-6">
-                            <span class="text-3xl">🌱</span>
-                        </div>
-                        <h4 class="text-xl font-semibold text-gray-700 mb-3">No entries yet</h4>
-                        <p class="text-gray-500 mb-8 max-w-sm mx-auto">Start tracking your carbon footprint today and make a positive environmental impact!</p>
-                        <div class="flex flex-col sm:flex-row gap-4 justify-center">
-                            <button @click="currentView = 'input'" 
-                                    class="btn-primary text-white px-8 py-4 rounded-2xl font-semibold text-lg shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300">
-                                🌍 Add Your First Entry
-                            </button>
-                            <button @click="createSampleData()" 
-                                    class="bg-gradient-to-r from-blue-50 to-blue-100 text-blue-700 px-8 py-4 rounded-2xl font-semibold text-lg border-2 border-blue-200 hover:border-blue-300 hover:bg-gradient-to-r hover:from-blue-100 hover:to-blue-200 transition-all duration-300">
-                                📊 Create Demo Data
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <div v-else class="space-y-4">
-                        <div v-for="(entry, index) in emissions.slice(0, 6)" :key="entry.id" 
-                             class="group bg-gradient-to-r from-white/80 to-white/60 backdrop-blur-sm border border-white/50 rounded-2xl p-6 hover:from-white/90 hover:to-white/80 hover:border-white/70 transition-all duration-300 hover:shadow-lg transform hover:-translate-y-1"
-                             :style="'animation-delay: ' + (index * 100) + 'ms'">
-                            <div class="flex items-start justify-between">
-                                <div class="flex items-start space-x-4 flex-1">
-                                    <div class="w-12 h-12 bg-gradient-to-br rounded-2xl flex items-center justify-center text-xl shadow-md group-hover:shadow-lg transition-all duration-300"
-                                         :class="{
-                                             'from-blue-400 to-blue-600': entry.category === 'transportation',
-                                             'from-yellow-400 to-yellow-600': entry.category === 'energy',
-                                             'from-green-400 to-green-600': entry.category === 'food',
-                                             'from-purple-400 to-purple-600': entry.category === 'waste'
-                                         }">
-                                        <span class="text-white">
-                                            {{ entry.category === 'transportation' ? '🚗' : 
-                                               entry.category === 'energy' ? '⚡' : 
-                                               entry.category === 'food' ? '🍽️' : 
-                                               entry.category === 'waste' ? '🗑️' : '🌍' }}
-                                        </span>
-                                    </div>
-                                    <div class="flex-1 min-w-0">
-                                        <div class="flex items-center space-x-2 mb-1">
-                                            <h4 class="text-lg font-semibold text-gray-800 truncate">{{ entry.activity }}</h4>
-                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize"
-                                                  :class="{
-                                                      'bg-blue-100 text-blue-800': entry.category === 'transportation',
-                                                      'bg-yellow-100 text-yellow-800': entry.category === 'energy',
-                                                      'bg-green-100 text-green-800': entry.category === 'food',
-                                                      'bg-purple-100 text-purple-800': entry.category === 'waste'
-                                                  }">
-                                                {{ entry.category }}
-                                            </span>
-                                        </div>
-                                        <p class="text-gray-600 text-sm mb-2 line-clamp-2">{{ entry.amount }} {{ entry.unit }}</p>
-                                        <div class="flex items-center space-x-4 text-xs text-gray-500">
-                                            <span class="flex items-center space-x-1">
-                                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
-                                                </svg>
-                                                <span>{{ formatDate(entry.date) }}</span>
-                                            </span>
-                                            <span class="flex items-center space-x-1">
-                                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
-                                                </svg>
-                                                <span>CO₂ Impact</span>
-                                            </span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="text-right ml-4">
-                                    <div class="flex items-center space-x-2">
-                                        <span class="text-2xl font-bold text-red-600">{{ entry.co2_equivalent }}</span>
-                                        <span class="text-sm text-gray-500 font-medium">kg</span>
-                                    </div>
-                                    <div class="flex items-center justify-end mt-1">
-                                        <span class="text-xs px-2 py-1 bg-red-100 text-red-600 rounded-full">
-                                            📈 Emission
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- Show More Button -->
-                        <div v-if="emissions.length > 6" class="text-center pt-4">
-                            <button @click="currentView = 'profile'" 
-                                    class="inline-flex items-center px-6 py-3 text-sm font-medium text-blue-600 bg-blue-50 rounded-2xl hover:bg-blue-100 transition-all duration-300">
-                                View All Entries
-                                <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
-                                </svg>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Input View -->
-            <div v-if="currentView === 'input' && isAuthenticated" class="max-w-2xl mx-auto fade-in">
-                <div class="glass-effect rounded-2xl shadow-2xl p-8 card-hover">
-                    <div class="text-center mb-8">
-                        <div class="w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <span class="text-2xl text-white">➕</span>
-                        </div>
-                        <h2 class="text-3xl font-bold text-gray-800 mb-2">Add Carbon Emission</h2>
-                        <p class="text-gray-600">Track your environmental impact</p>
-                    </div>
-                    <form @submit.prevent="addEmission" class="space-y-6">
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div>
-                                <label class="block text-gray-700 text-sm font-semibold mb-3">Category</label>
-                                <select v-model="emissionForm.category" required
-                                        class="w-full px-4 py-3 input-field rounded-xl focus:outline-none bg-white/70">
-                                    <option value="">Select Category</option>
-                                    <option value="transportation">🚗 Transportation</option>
-                                    <option value="energy">⚡ Energy</option>
-                                    <option value="food">🍽️ Food</option>
-                                    <option value="waste">🗑️ Waste</option>
-                                    <option value="other">🌍 Other</option>
-                                </select>
-                            </div>
-                            
-                            <div>
-                                <label class="block text-gray-700 text-sm font-semibold mb-3">Date</label>
-                                <input v-model="emissionForm.date" type="date" required
-                                       class="w-full px-4 py-3 input-field rounded-xl focus:outline-none bg-white/70">
-                            </div>
-                        </div>
-                        
-                                                <div>
-                            <label class="block text-gray-700 text-sm font-semibold mb-3">Activity</label>
-                            <div v-if="emissionForm.category && activityOptions[emissionForm.category]" class="mb-3">
-                                <div class="text-sm text-gray-600 mb-2">💡 Suggested activities for {{ emissionForm.category }}:</div>
-                                <div class="grid grid-cols-1 gap-2 max-h-40 overflow-y-auto">
-                                    <div v-for="option in activityOptions[emissionForm.category]" :key="option.key"
-                                         @click="selectActivity(option)"
-                                         class="cursor-pointer p-3 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-all duration-200">
-                                        <div class="flex justify-between items-start">
-                                            <div>
-                                                <div class="font-medium text-gray-800">{{ option.name }}</div>
-                                                <div class="text-xs text-gray-500 mt-1">{{ option.example }}</div>
-                                            </div>
-                                            <div class="text-xs px-2 py-1 bg-gray-100 rounded-full">
-                                                {{ option.unit }}
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <input v-model="emissionForm.activity" type="text" required
-                                   :placeholder="emissionForm.category ? 'Select from suggestions above or enter custom activity' : 'e.g., Car drive, Flight, Electricity usage'"
-                                   class="w-full px-4 py-3 input-field rounded-xl focus:outline-none bg-white/70">
-                        </div>
-                        
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div>
-                                <label class="block text-gray-700 text-sm font-semibold mb-3">Amount</label>
-                                <input v-model="emissionForm.amount" type="number" step="0.01" required
-                                       placeholder="Enter amount"
-                                       class="w-full px-4 py-3 input-field rounded-xl focus:outline-none bg-white/70">
-                            </div>
-                            <div>
-                                <label class="block text-gray-700 text-sm font-semibold mb-3">Unit</label>
-                                <select v-model="emissionForm.unit" required
-                                        class="w-full px-4 py-3 input-field rounded-xl focus:outline-none bg-white/70">
-                                    <option value="">Select Unit</option>
-                                    <option value="km">Kilometers</option>
-                                    <option value="miles">Miles</option>
-                                    <option value="kWh">Kilowatt Hours</option>
-                                    <option value="liters">Liters</option>
-                                    <option value="kg">Kilograms</option>
-                                </select>
-                            </div>
-                        </div>
-                        
-                        <div>
-                            <label class="block text-gray-700 text-sm font-semibold mb-3">Description (Optional)</label>
-                            <textarea v-model="emissionForm.description" 
-                                      placeholder="Add any additional details..."
-                                      class="w-full px-4 py-3 input-field rounded-xl focus:outline-none bg-white/70" 
-                                      rows="4"></textarea>
-                        </div>
-                        
-                        <button type="submit" class="w-full btn-primary text-white py-4 rounded-xl font-semibold text-lg shadow-lg">
-                            ✨ Add Emission Entry
-                        </button>
-                    </form>
-                </div>
-            </div>
-
-            <!-- Profile View -->
-            <div v-if="currentView === 'profile' && isAuthenticated" class="max-w-2xl mx-auto fade-in">
-                <div class="glass-effect rounded-2xl shadow-2xl p-8 card-hover">
-                    <div class="text-center mb-8">
-                        <div class="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <span class="text-3xl text-white">👤</span>
-                        </div>
-                        <h2 class="text-3xl font-bold text-gray-800 mb-2">User Profile</h2>
-                        <p class="text-gray-600">Manage your account settings</p>
-                    </div>
-                    <form class="space-y-6">
-                        <div>
-                            <label class="block text-gray-700 text-sm font-semibold mb-3">Full Name</label>
-                            <input v-model="userProfile.full_name" type="text"
-                                   placeholder="Enter your full name"
-                                   class="w-full px-4 py-3 input-field rounded-xl focus:outline-none bg-white/70">
-                        </div>
-                        <div>
-                            <label class="block text-gray-700 text-sm font-semibold mb-3">Email Address</label>
-                            <input v-model="userProfile.email" type="email" disabled
-                                   class="w-full px-4 py-3 rounded-xl bg-gray-100 border-2 border-gray-200 text-gray-600 cursor-not-allowed">
-                            <p class="text-xs text-gray-500 mt-1">Email cannot be changed</p>
-                        </div>
-                        <div>
-                            <label class="block text-gray-700 text-sm font-semibold mb-3">Monthly Carbon Budget</label>
-                            <div class="relative">
-                                <input v-model="userProfile.carbon_budget" type="number"
-                                       placeholder="Set your monthly target"
-                                       class="w-full px-4 py-3 input-field rounded-xl focus:outline-none bg-white/70 pr-16">
-                                <span class="absolute right-4 top-3.5 text-gray-500 font-medium">kg CO₂</span>
-                            </div>
-                            <p class="text-xs text-gray-500 mt-1">Your target monthly carbon emissions limit</p>
-                        </div>
-                        
-                        <!-- Profile Stats -->
-                        <div class="bg-blue-50 rounded-xl p-6 border border-blue-100">
-                            <h3 class="font-semibold text-gray-800 mb-4">Account Statistics</h3>
-                            <div class="grid grid-cols-2 gap-4 text-center">
-                                <div>
-                                    <p class="text-2xl font-bold text-blue-600">{{ emissions.length }}</p>
-                                    <p class="text-sm text-gray-600">Total Entries</p>
-                                </div>
-                                <div>
-                                    <p class="text-2xl font-bold text-blue-600">{{ Math.round((userProfile.carbon_budget - monthlyEmissions) || 0) }}</p>
-                                    <p class="text-sm text-gray-600">Budget Remaining</p>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <button @click="updateProfile" type="button" 
-                                class="w-full btn-primary text-white py-4 rounded-xl font-semibold text-lg shadow-lg">
-                            💾 Update Profile
-                        </button>
-                    </form>
-                </div>
-            </div>
-
-            <!-- Admin Panel View -->
-            <div v-if="currentView === 'admin' && isAuthenticated && userProfile.role === 'admin'" class="fade-in">
-                <div class="max-w-6xl mx-auto">
-                    <!-- Admin Header -->
-                    <div class="glass-effect rounded-2xl shadow-2xl p-8 mb-8 card-hover">
-                        <div class="text-center">
-                            <div class="w-16 h-16 bg-gradient-to-br from-purple-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-6">
-                                <span class="text-3xl text-white">⚙️</span>
-                            </div>
-                            <h2 class="text-4xl font-bold text-gray-800 mb-4">Admin Panel</h2>
-                            <p class="text-xl text-gray-600 mb-6">Manage users, registrations, and system settings</p>
-                        </div>
-                        
-                        <!-- Admin Stats -->
-                        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mt-8">
-                            <div class="bg-blue-50 rounded-xl p-6 text-center">
-                                <div class="text-3xl text-blue-600 mb-2">{{ adminStats.totalUsers }}</div>
-                                <div class="text-sm text-gray-600 font-semibold">Total Users</div>
-                            </div>
-                            <div class="bg-yellow-50 rounded-xl p-6 text-center">
-                                <div class="text-3xl text-yellow-600 mb-2">{{ adminStats.pendingRegistrations }}</div>
-                                <div class="text-sm text-gray-600 font-semibold">Pending Registrations</div>
-                            </div>
-                            <div class="bg-green-50 rounded-xl p-6 text-center">
-                                <div class="text-3xl text-green-600 mb-2">{{ adminStats.activeThisMonth }}</div>
-                                <div class="text-sm text-gray-600 font-semibold">Active This Month</div>
-                            </div>
-                            <div class="bg-purple-50 rounded-xl p-6 text-center">
-                                <div class="text-3xl text-purple-600 mb-2">{{ adminStats.totalCarbonTracked }}</div>
-                                <div class="text-sm text-gray-600 font-semibold">CO2 Tracked (kg)</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Admin Navigation -->
-                    <div class="glass-effect rounded-2xl shadow-2xl p-6 mb-8">
-                        <div class="flex space-x-4 overflow-x-auto">
-                            <button @click="adminTab = 'pending'" 
-                                    :class="{'bg-purple-500 text-white': adminTab === 'pending', 'bg-white text-gray-700': adminTab !== 'pending'}"
-                                    class="px-6 py-3 rounded-xl font-semibold whitespace-nowrap transition-all duration-200 shadow-lg hover:shadow-xl">
-                                📋 Pending Registrations ({{ pendingUsers.length }})
-                            </button>
-                            <button @click="adminTab = 'users'" 
-                                    :class="{'bg-purple-500 text-white': adminTab === 'users', 'bg-white text-gray-700': adminTab !== 'users'}"
-                                    class="px-6 py-3 rounded-xl font-semibold whitespace-nowrap transition-all duration-200 shadow-lg hover:shadow-xl">
-                                👥 All Users
-                            </button>
-                            <button @click="adminTab = 'analytics'" 
-                                    :class="{'bg-purple-500 text-white': adminTab === 'analytics', 'bg-white text-gray-700': adminTab !== 'analytics'}"
-                                    class="px-6 py-3 rounded-xl font-semibold whitespace-nowrap transition-all duration-200 shadow-lg hover:shadow-xl">
-                                📊 Analytics
-                            </button>
-                            <button @click="adminTab = 'settings'" 
-                                    :class="{'bg-purple-500 text-white': adminTab === 'settings', 'bg-white text-gray-700': adminTab !== 'settings'}"
-                                    class="px-6 py-3 rounded-xl font-semibold whitespace-nowrap transition-all duration-200 shadow-lg hover:shadow-xl">
-                                ⚙️ Settings
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Pending Registrations Tab -->
-                    <div v-if="adminTab === 'pending'" class="glass-effect rounded-2xl shadow-2xl p-8">
-                        <h3 class="text-2xl font-bold text-gray-800 mb-6">Pending Registration Approvals</h3>
-                        
-                        <div v-if="pendingUsers.length === 0" class="text-center py-12">
-                            <div class="text-6xl mb-4">✅</div>
-                            <p class="text-xl text-gray-600">No pending registrations</p>
-                            <p class="text-gray-500">All registration requests have been processed</p>
-                        </div>
-                        
-                        <div v-else class="space-y-4">
-                            <div v-for="user in pendingUsers" :key="user.id" 
-                                 class="bg-white rounded-xl p-6 border border-gray-200 hover:shadow-lg transition-all duration-200">
-                                <div class="flex items-center justify-between">
-                                    <div class="flex items-center space-x-4">
-                                        <div class="w-12 h-12 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center">
-                                            <span class="text-white font-bold text-lg">{{ user.firstName[0] }}{{ user.lastName[0] }}</span>
-                                        </div>
-                                        <div>
-                                            <h4 class="font-semibold text-lg text-gray-800">{{ user.firstName }} {{ user.lastName }}</h4>
-                                            <p class="text-gray-600">{{ user.email }}</p>
-                                            <p class="text-sm text-gray-500" v-if="user.organization">{{ user.organization }}</p>
-                                            <p class="text-xs text-gray-400">Registered: {{ formatDate(user.registeredAt) }}</p>
-                                        </div>
-                                    </div>
-                                    <div class="flex space-x-3">
-                                        <button @click="approveUser(user.id)" 
-                                                class="px-6 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg font-semibold transition-all duration-200 shadow-lg">
-                                            ✅ Approve
-                                        </button>
-                                        <button @click="rejectUser(user.id)" 
-                                                class="px-6 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-semibold transition-all duration-200 shadow-lg">
-                                            ❌ Reject
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- All Users Tab -->
-                    <div v-if="adminTab === 'users'" class="glass-effect rounded-2xl shadow-2xl p-8">
-                        <div class="flex justify-between items-center mb-6">
-                            <h3 class="text-2xl font-bold text-gray-800">All Users</h3>
-                            <div class="flex space-x-4">
-                                <select v-model="userFilter" class="px-4 py-2 border border-gray-300 rounded-lg">
-                                    <option value="all">All Users</option>
-                                    <option value="active">Active Users</option>
-                                    <option value="inactive">Inactive Users</option>
-                                    <option value="admins">Admins</option>
-                                </select>
-                                <input v-model="userSearch" placeholder="Search users..." 
-                                       class="px-4 py-2 border border-gray-300 rounded-lg">
-                            </div>
-                        </div>
-
-                        <div class="overflow-x-auto">
-                            <table class="w-full">
-                                <thead>
-                                    <tr class="bg-gray-50">
-                                        <th class="px-6 py-4 text-left text-sm font-semibold text-gray-600">User</th>
-                                        <th class="px-6 py-4 text-left text-sm font-semibold text-gray-600">Status</th>
-                                        <th class="px-6 py-4 text-left text-sm font-semibold text-gray-600">Role</th>
-                                        <th class="px-6 py-4 text-left text-sm font-semibold text-gray-600">Last Active</th>
-                                        <th class="px-6 py-4 text-left text-sm font-semibold text-gray-600">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr v-for="user in filteredUsers" :key="user.id" class="border-t border-gray-200 hover:bg-gray-50">
-                                        <td class="px-6 py-4">
-                                            <div class="flex items-center space-x-3">
-                                                <div class="w-10 h-10 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center">
-                                                    <span class="text-white font-bold">{{ user.name[0] }}</span>
-                                                </div>
-                                                <div>
-                                                    <div class="font-semibold text-gray-800">{{ user.name }}</div>
-                                                    <div class="text-sm text-gray-600">{{ user.email }}</div>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td class="px-6 py-4">
-                                            <span :class="{'bg-green-100 text-green-800': user.status === 'active', 
-                                                           'bg-gray-100 text-gray-800': user.status === 'inactive'}"
-                                                  class="px-3 py-1 rounded-full text-sm font-semibold">
-                                                {{ user.status }}
-                                            </span>
-                                        </td>
-                                        <td class="px-6 py-4">
-                                            <span :class="{'bg-purple-100 text-purple-800': user.role === 'admin', 
-                                                           'bg-blue-100 text-blue-800': user.role === 'user'}"
-                                                  class="px-3 py-1 rounded-full text-sm font-semibold">
-                                                {{ user.role }}
-                                            </span>
-                                        </td>
-                                        <td class="px-6 py-4 text-sm text-gray-600">{{ formatDate(user.lastActive) }}</td>
-                                        <td class="px-6 py-4">
-                                            <div class="flex space-x-2">
-                                                <button @click="editUser(user.id)" 
-                                                        class="px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded text-sm">
-                                                    Edit
-                                                </button>
-                                                <button v-if="user.role !== 'admin'" @click="toggleUserStatus(user.id)" 
-                                                        :class="{'bg-red-500 hover:bg-red-600': user.status === 'active', 
-                                                                'bg-green-500 hover:bg-green-600': user.status === 'inactive'}"
-                                                        class="px-3 py-1 text-white rounded text-sm">
-                                                    {{ user.status === 'active' ? 'Deactivate' : 'Activate' }}
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    <!-- Analytics Tab -->
-                    <div v-if="adminTab === 'analytics'" class="glass-effect rounded-2xl shadow-2xl p-8">
-                        <h3 class="text-2xl font-bold text-gray-800 mb-6">System Analytics</h3>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div class="bg-white rounded-xl p-6 border border-gray-200">
-                                <h4 class="font-semibold text-lg mb-4">User Growth</h4>
-                                <div class="text-3xl font-bold text-blue-600 mb-2">+24</div>
-                                <p class="text-sm text-gray-600">New users this month</p>
-                            </div>
-                            <div class="bg-white rounded-xl p-6 border border-gray-200">
-                                <h4 class="font-semibold text-lg mb-4">Carbon Impact</h4>
-                                <div class="text-3xl font-bold text-green-600 mb-2">2,847 kg</div>
-                                <p class="text-sm text-gray-600">Total CO2 tracked</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Settings Tab -->
-                    <div v-if="adminTab === 'settings'" class="glass-effect rounded-2xl shadow-2xl p-8">
-                        <h3 class="text-2xl font-bold text-gray-800 mb-6">System Settings</h3>
-                        <div class="space-y-6">
-                            <div class="bg-white rounded-xl p-6 border border-gray-200">
-                                <h4 class="font-semibold text-lg mb-4">Registration Settings</h4>
-                                <div class="space-y-4">
-                                    <label class="flex items-center space-x-3">
-                                        <input v-model="systemSettings.requireApproval" type="checkbox" class="w-4 h-4">
-                                        <span>Require admin approval for new registrations</span>
-                                    </label>
-                                    <label class="flex items-center space-x-3">
-                                        <input v-model="systemSettings.allowSelfRegistration" type="checkbox" class="w-4 h-4">
-                                        <span>Allow self-registration</span>
-                                    </label>
-                                </div>
-                            </div>
-                            <button @click="saveSettings" 
-                                    class="px-6 py-3 bg-purple-500 hover:bg-purple-600 text-white rounded-xl font-semibold">
-                                💾 Save Settings
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Recommendations View -->
-            <div v-if="currentView === 'recommendations' && isAuthenticated" class="fade-in">
-                <div class="max-w-6xl mx-auto">
-                    <!-- Recommendations Header -->
-                    <div class="glass-effect rounded-2xl shadow-2xl p-8 mb-8 card-hover">
-                        <div class="text-center">
-                            <div class="w-16 h-16 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center mx-auto mb-6">
-                                <span class="text-3xl text-white">💡</span>
-                            </div>
-                            <h2 class="text-4xl font-bold text-gray-800 mb-4">Carbon Reduction Recommendations</h2>
-                            <p class="text-xl text-gray-600 mb-6">Personalized suggestions to reduce your carbon footprint</p>
-                        </div>
-                        
-                        <!-- Stats Overview -->
-                        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mt-8">
-                            <div class="bg-blue-50 rounded-xl p-6 text-center">
-                                <div class="text-3xl font-bold text-blue-600">{{ recommendationStats.totalRecommendations || 0 }}</div>
-                                <div class="text-sm text-blue-700 font-medium">Total Recommendations</div>
-                            </div>
-                            <div class="bg-green-50 rounded-xl p-6 text-center">
-                                <div class="text-3xl font-bold text-green-600">{{ Math.round(recommendationStats.potentialSavings || 0) }}kg</div>
-                                <div class="text-sm text-green-700 font-medium">Potential CO₂ Savings</div>
-                            </div>
-                            <div class="bg-yellow-50 rounded-xl p-6 text-center">
-                                <div class="text-3xl font-bold text-yellow-600">{{ recommendationStats.quickWins || 0 }}</div>
-                                <div class="text-sm text-yellow-700 font-medium">Quick Wins</div>
-                            </div>
-                            <div class="bg-purple-50 rounded-xl p-6 text-center">
-                                <div class="text-3xl font-bold text-purple-600">{{ recommendationStats.highImpact || 0 }}</div>
-                                <div class="text-sm text-purple-700 font-medium">High Impact</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Category Filters -->
-                    <div class="glass-effect rounded-xl shadow-lg p-6 mb-8">
-                        <h3 class="text-lg font-semibold text-gray-800 mb-4">Filter by Category</h3>
-                        <div class="flex flex-wrap gap-3">
-                            <button @click="selectedCategory = null" 
-                                    :class="{'bg-blue-600 text-white': selectedCategory === null, 'bg-gray-200 text-gray-700': selectedCategory !== null}"
-                                    class="px-4 py-2 rounded-lg font-medium transition-colors">
-                                All Categories
-                            </button>
-                            <button v-for="(category, key) in recommendationCategories" :key="key"
-                                    @click="selectedCategory = key"
-                                    :class="{'bg-blue-600 text-white': selectedCategory === key, 'bg-gray-200 text-gray-700': selectedCategory !== key}"
-                                    class="px-4 py-2 rounded-lg font-medium transition-colors flex items-center space-x-2">
-                                <span>{{ category.icon }}</span>
-                                <span>{{ category.name }}</span>
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Recommendations Grid -->
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        <div v-for="rec in filteredRecommendations" :key="rec.id" 
-                             class="glass-effect rounded-xl shadow-lg p-6 card-hover transition-transform hover:scale-105">
-                            <!-- Recommendation Header -->
-                            <div class="flex justify-between items-start mb-4">
-                                <div class="flex items-center space-x-3">
-                                    <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
-                                        <span class="text-white text-lg">{{ getCategoryIcon(rec.category) }}</span>
-                                    </div>
-                                    <div>
-                                        <div class="text-xs font-medium text-gray-500 uppercase tracking-wide">{{ rec.category }}</div>
-                                        <div class="text-sm font-semibold text-gray-800">{{ rec.title }}</div>
-                                    </div>
-                                </div>
-                                <div class="flex flex-col items-end space-y-1">
-                                    <span :class="getDifficultyColor(rec.difficulty)" 
-                                          class="px-2 py-1 rounded-full text-xs font-medium">
-                                        {{ rec.difficulty }}
-                                    </span>
-                                    <span :class="getCostColor(rec.cost)" 
-                                          class="px-2 py-1 rounded-full text-xs font-medium">
-                                        {{ rec.cost }}
-                                    </span>
-                                </div>
-                            </div>
-
-                            <!-- Recommendation Content -->
-                            <p class="text-gray-700 text-sm mb-4 leading-relaxed">{{ rec.description }}</p>
-                            
-                            <!-- Impact Metrics -->
-                            <div class="bg-green-50 rounded-lg p-4 mb-4">
-                                <div class="flex justify-between items-center">
-                                    <div>
-                                        <div class="text-lg font-bold text-green-600">{{ Math.round(rec.co2_savings_kg) }}kg CO₂</div>
-                                        <div class="text-xs text-green-700">Annual Savings</div>
-                                    </div>
-                                    <div class="text-right">
-                                        <div class="text-lg font-bold text-blue-600">{{ rec.score }}/10</div>
-                                        <div class="text-xs text-blue-700">Impact Score</div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Action Steps -->
-                            <div v-if="rec.action_steps && rec.action_steps.length > 0" class="mb-4">
-                                <h4 class="text-sm font-semibold text-gray-800 mb-2">How to get started:</h4>
-                                <ul class="text-xs text-gray-600 space-y-1">
-                                    <li v-for="step in rec.action_steps.slice(0, 3)" :key="step" 
-                                        class="flex items-start space-x-2">
-                                        <span class="text-blue-500 mt-1">•</span>
-                                        <span>{{ step }}</span>
-                                    </li>
-                                </ul>
-                            </div>
-
-                            <!-- Action Button -->
-                            <button class="w-full bg-gradient-to-r from-blue-500 to-blue-600 text-white py-2 px-4 rounded-lg font-medium text-sm hover:from-blue-600 hover:to-blue-700 transition-colors">
-                                Learn More
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Loading State -->
-                    <div v-if="isLoading" class="text-center py-12">
-                        <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-                        <p class="mt-4 text-gray-600">Loading personalized recommendations...</p>
-                    </div>
-
-                    <!-- No Recommendations -->
-                    <div v-if="!isLoading && recommendations.length === 0" class="glass-effect rounded-xl shadow-lg p-12 text-center">
-                        <div class="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-6">
-                            <span class="text-2xl text-gray-500">📋</span>
-                        </div>
-                        <h3 class="text-xl font-semibold text-gray-800 mb-4">No Recommendations Yet</h3>
-                        <p class="text-gray-600 mb-6">Add some activities to get personalized carbon reduction recommendations.</p>
-                        <button @click="currentView = 'input'" 
-                                class="bg-blue-600 text-white py-3 px-6 rounded-lg font-medium hover:bg-blue-700 transition-colors">
-                            Add Your First Activity
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Gamification View -->
-            <div v-if="currentView === 'gamification' && isAuthenticated" class="fade-in">
-                <div class="max-w-7xl mx-auto">
-                    
-                    <!-- Gamification Header -->
-                    <div class="glass-effect rounded-2xl shadow-2xl p-8 mb-8 card-hover">
-                        <div class="text-center">
-                            <div class="w-16 h-16 bg-gradient-to-br from-yellow-500 to-yellow-600 rounded-full flex items-center justify-center mx-auto mb-6">
-                                <span class="text-3xl text-white">🏆</span>
-                            </div>
-                            <h2 class="text-4xl font-bold text-gray-800 mb-4">Your Carbon Journey</h2>
-                            <p class="text-xl text-gray-600 mb-6">Track your progress, earn achievements, and compete with others</p>
-                        </div>
-                        
-                        <!-- User Level & Points -->
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
-                            <div class="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl p-6 text-white text-center">
-                                <div class="text-3xl mb-2">{{ gamificationProfile.level?.current_level?.icon || '🌱' }}</div>
-                                <div class="text-2xl font-bold">{{ gamificationProfile.level?.current_level?.name || 'Seedling' }}</div>
-                                <div class="text-sm opacity-80">Level {{ gamificationProfile.level?.current_level?.level || 1 }}</div>
-                                <div class="mt-4 bg-white/20 rounded-full h-2">
-                                    <div class="bg-white rounded-full h-2 transition-all duration-500" 
-                                         :style="{ width: (gamificationProfile.level?.progress_to_next || 0) + '%' }"></div>
-                                </div>
-                                <div class="text-xs mt-2">{{ Math.round(gamificationProfile.level?.progress_to_next || 0) }}% to next level</div>
-                            </div>
-                            
-                            <div class="bg-gradient-to-r from-yellow-500 to-yellow-600 rounded-xl p-6 text-white text-center">
-                                <div class="text-3xl mb-2">⭐</div>
-                                <div class="text-2xl font-bold">{{ gamificationProfile.total_points?.toLocaleString() || 0 }}</div>
-                                <div class="text-sm opacity-80">Total Points</div>
-                            </div>
-                            
-                            <div class="bg-gradient-to-r from-red-500 to-red-600 rounded-xl p-6 text-white text-center">
-                                <div class="text-3xl mb-2">🔥</div>
-                                <div class="text-2xl font-bold">{{ gamificationProfile.streak?.current_streak || 0 }}</div>
-                                <div class="text-sm opacity-80">Day Streak</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                        
-                        <!-- Recent Achievements -->
-                        <div class="glass-effect rounded-xl shadow-lg p-6">
-                            <div class="flex justify-between items-center mb-6">
-                                <h3 class="text-xl font-bold text-gray-800 flex items-center">
-                                    <span class="text-2xl mr-3">🏅</span>
-                                    Recent Achievements
-                                </h3>
-                                <button @click="showAllAchievements = !showAllAchievements" 
-                                        class="text-blue-600 hover:text-blue-800 font-medium">
-                                    {{ showAllAchievements ? 'Show Recent' : 'View All' }}
-                                </button>
-                            </div>
-                            
-                            <div v-if="recentAchievements.length === 0" class="text-center py-8 text-gray-500">
-                                <div class="text-4xl mb-4">🎯</div>
-                                <p>No achievements yet! Complete activities to start earning badges.</p>
-                            </div>
-                            
-                            <div v-else class="space-y-4">
-                                <div v-for="achievement in (showAllAchievements ? allAchievements : recentAchievements)" 
-                                     :key="achievement.achievement_id" 
-                                     class="bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg p-4 border-l-4 border-yellow-500 card-hover">
-                                    <div class="flex items-center justify-between">
-                                        <div class="flex items-center space-x-3">
-                                            <span class="text-2xl">{{ achievement.icon }}</span>
-                                            <div>
-                                                <h4 class="font-semibold text-gray-800">{{ achievement.name }}</h4>
-                                                <p class="text-sm text-gray-600">{{ achievement.description }}</p>
-                                            </div>
-                                        </div>
-                                        <div class="text-right">
-                                            <div class="text-lg font-bold text-yellow-600">+{{ achievement.points }}</div>
-                                            <div class="text-xs text-gray-500 capitalize">{{ achievement.tier }}</div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- Active Challenges -->
-                        <div class="glass-effect rounded-xl shadow-lg p-6">
-                            <h3 class="text-xl font-bold text-gray-800 mb-6 flex items-center">
-                                <span class="text-2xl mr-3">⚡</span>
-                                Active Challenges
-                            </h3>
-                            
-                            <div v-if="activeChallenges.length === 0" class="text-center py-8 text-gray-500">
-                                <div class="text-4xl mb-4">📅</div>
-                                <p>No active challenges. Check back for new daily, weekly, and monthly challenges!</p>
-                            </div>
-                            
-                            <div v-else class="space-y-4">
-                                <div v-for="challenge in activeChallenges" :key="challenge.challenge_id" 
-                                     class="bg-white rounded-lg p-4 border border-gray-200 card-hover">
-                                    <div class="flex justify-between items-start mb-3">
-                                        <div>
-                                            <h4 class="font-semibold text-gray-800 flex items-center">
-                                                <span class="mr-2">{{ challenge.icon }}</span>
-                                                {{ challenge.name }}
-                                            </h4>
-                                            <p class="text-sm text-gray-600">{{ challenge.description }}</p>
-                                        </div>
-                                        <span :class="getDifficultyColor(challenge.difficulty)" 
-                                              class="px-2 py-1 rounded-full text-xs font-medium">
-                                            {{ challenge.difficulty }}
-                                        </span>
-                                    </div>
-                                    
-                                    <!-- Progress Bar -->
-                                    <div class="mb-3">
-                                        <div class="flex justify-between text-sm text-gray-600 mb-1">
-                                            <span>Progress</span>
-                                            <span>{{ Math.round(challenge.completion_rate) }}%</span>
-                                        </div>
-                                        <div class="bg-gray-200 rounded-full h-2">
-                                            <div class="bg-gradient-to-r from-blue-500 to-blue-600 rounded-full h-2 transition-all duration-500"
-                                                 :style="{ width: challenge.completion_rate + '%' }"></div>
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="flex justify-between items-center">
-                                        <div class="text-sm text-gray-600">
-                                            <span class="font-medium text-green-600">{{ challenge.points_reward }}</span> points
-                                            <span v-if="challenge.bonus_points" class="text-yellow-600 ml-2">
-                                                + {{ challenge.bonus_points }} bonus
-                                            </span>
-                                        </div>
-                                        <div class="text-xs text-gray-500">
-                                            {{ challenge.time_remaining?.days }}d {{ challenge.time_remaining?.hours }}h left
-                                        </div>
-                                    </div>
-                                    
-                                    <button v-if="challenge.is_completed" 
-                                            @click="completeChallenge(challenge.challenge_id)"
-                                            class="mt-3 w-full bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded-lg font-medium transition-colors">
-                                        Claim Reward
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Leaderboards -->
-                    <div class="mt-8 glass-effect rounded-xl shadow-lg p-6">
-                        <div class="flex justify-between items-center mb-6">
-                            <h3 class="text-2xl font-bold text-gray-800 flex items-center">
-                                <span class="text-3xl mr-3">👑</span>
-                                Leaderboards
-                            </h3>
-                            <div class="flex space-x-2">
-                                <button v-for="period in ['daily', 'weekly', 'monthly', 'all_time']" :key="period"
-                                        @click="selectedLeaderboardPeriod = period"
-                                        :class="{'bg-blue-600 text-white': selectedLeaderboardPeriod === period, 'bg-gray-200 text-gray-700': selectedLeaderboardPeriod !== period}"
-                                        class="px-3 py-1 rounded-lg font-medium text-sm capitalize transition-colors">
-                                    {{ period.replace('_', ' ') }}
-                                </button>
-                            </div>
-                        </div>
-                        
-                        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                            <div v-for="leaderboard in filteredLeaderboards" :key="leaderboard.leaderboard_id" 
-                                 class="bg-white rounded-lg p-4 border border-gray-200">
-                                <div class="flex items-center justify-between mb-4">
-                                    <h4 class="font-semibold text-gray-800 flex items-center">
-                                        <span class="text-xl mr-2">{{ leaderboard.icon }}</span>
-                                        {{ leaderboard.title }}
-                                    </h4>
-                                </div>
-                                
-                                <div v-if="leaderboard.entries && leaderboard.entries.length > 0" class="space-y-2">
-                                    <div v-for="(entry, index) in leaderboard.entries.slice(0, 5)" :key="entry.user_id"
-                                         :class="{'bg-yellow-50 border-yellow-200': entry.user_id === userProfile.user_id}"
-                                         class="flex items-center justify-between p-2 rounded border">
-                                        <div class="flex items-center space-x-2">
-                                            <div :class="getRankColor(entry.rank)" 
-                                                 class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white">
-                                                {{ entry.rank }}
-                                            </div>
-                                            <div class="text-sm">
-                                                <div class="font-medium">{{ entry.display_name }}</div>
-                                                <div class="text-gray-500 text-xs">{{ entry.badge_icon }} Level {{ entry.level }}</div>
-                                            </div>
-                                        </div>
-                                        <div class="text-right">
-                                            <div class="font-bold text-sm">{{ Math.round(entry.score) }}</div>
-                                            <div class="text-xs text-gray-500">{{ leaderboard.score_label }}</div>
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                <div v-else class="text-center py-4 text-gray-500 text-sm">
-                                    Not enough participants yet
-                                </div>
-                                
-                                <!-- Current User Position -->
-                                <div v-if="leaderboard.current_user && leaderboard.current_user.rank" 
-                                     class="mt-3 pt-3 border-t border-gray-200">
-                                    <div class="text-xs text-gray-600 text-center">
-                                        You're ranked #{{ leaderboard.current_user.rank }} 
-                                        <span v-if="leaderboard.current_user.rank <= 10" class="text-green-600 font-medium">
-                                            (Top 10!)
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Statistics Dashboard -->
-                    <div class="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                        <div class="stats-card rounded-xl p-6 text-center">
-                            <div class="text-3xl mb-2">🎯</div>
-                            <div class="text-2xl font-bold text-gray-800">{{ gamificationStats.achievements_earned || 0 }}</div>
-                            <div class="text-sm text-gray-600">Achievements Earned</div>
-                        </div>
-                        
-                        <div class="stats-card rounded-xl p-6 text-center">
-                            <div class="text-3xl mb-2">📈</div>
-                            <div class="text-2xl font-bold text-gray-800">{{ gamificationStats.total_activities || 0 }}</div>
-                            <div class="text-sm text-gray-600">Activities Logged</div>
-                        </div>
-                        
-                        <div class="stats-card rounded-xl p-6 text-center">
-                            <div class="text-3xl mb-2">🌱</div>
-                            <div class="text-2xl font-bold text-gray-800">{{ Math.round(gamificationStats.carbon_saved_kg || 0) }}kg</div>
-                            <div class="text-sm text-gray-600">CO₂ Reduced</div>
-                        </div>
-                        
-                        <div class="stats-card rounded-xl p-6 text-center">
-                            <div class="text-3xl mb-2">🏆</div>
-                            <div class="text-2xl font-bold text-gray-800">{{ gamificationStats.goals_achieved || 0 }}</div>
-                            <div class="text-sm text-gray-600">Goals Achieved</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Not Authenticated Message -->
-            <div v-if="!isAuthenticated && currentView !== 'login' && currentView !== 'register'" class="text-center fade-in">
-                <div class="glass-effect rounded-2xl shadow-2xl p-12 max-w-2xl mx-auto card-hover">
-                    <div class="w-24 h-24 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center mx-auto mb-8">
-                        <span class="text-4xl text-white">🌍</span>
-                    </div>
-                    <h2 class="text-4xl font-bold text-gray-800 mb-4">Welcome to CarbonTrack</h2>
-                    <p class="text-xl text-gray-600 mb-8 leading-relaxed">Take control of your environmental impact with our comprehensive carbon footprint tracking platform</p>
-                    <div class="flex flex-wrap justify-center gap-4 mb-8">
-                        <div class="flex items-center space-x-2 text-gray-600">
-                            <span class="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">📈</span>
-                            <span>Track Emissions</span>
-                        </div>
-                        <div class="flex items-center space-x-2 text-gray-600">
-                            <span class="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">🎯</span>
-                            <span>Set Goals</span>
-                        </div>
-                        <div class="flex items-center space-x-2 text-gray-600">
-                            <span class="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">🌱</span>
-                            <span>Make Impact</span>
-                        </div>
-                    </div>
-                    <button @click="currentView = 'login'" class="btn-primary text-white px-8 py-4 rounded-xl font-semibold text-lg shadow-lg">
-                        Get Started Today
-                    </button>
                 </div>
             </div>
         </div>
-    </div>
+    </section>
 
-    <script src="app-full.js"></script>
+    <!-- Problem Statement - CSRD Challenge -->
+    <section id="csrd" class="py-20 bg-white">
+        <div class="container mx-auto px-6">
+            <div class="max-w-6xl mx-auto">
+                <div class="text-center mb-16">
+                    <h2 class="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
+                        The CSRD Challenge
+                    </h2>
+                    <p class="text-xl text-gray-600 max-w-3xl mx-auto">
+                        Starting January 1, 2024, the EU Corporate Sustainability Reporting Directive (CSRD) 
+                        fundamentally changes how 50,000+ companies report environmental impact
+                    </p>
+                </div>
+
+                <!-- Warning Banner -->
+                <div class="bg-red-50 border-l-4 border-red-500 rounded-lg p-6 mb-12">
+                    <div class="flex items-start">
+                        <span class="text-3xl mr-4">⚠️</span>
+                        <div>
+                            <h3 class="text-xl font-bold text-red-900 mb-2">Penalties for Non-Compliance</h3>
+                            <ul class="text-red-800 space-y-1">
+                                <li>• <strong>Financial Sanctions:</strong> Up to 5% of annual turnover</li>
+                                <li>• <strong>Audit Failures:</strong> Third-party verification rejections</li>
+                                <li>• <strong>Market Access:</strong> Restricted access to sustainable finance</li>
+                                <li>• <strong>Reputational Damage:</strong> Public disclosure of non-compliance</li>
+                            </ul>
+                            <p class="mt-4 font-bold text-red-900">⏰ First reports due in 2025 (for fiscal year 2024 data)</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Who Must Comply -->
+                <div class="grid md:grid-cols-3 gap-8 mb-12">
+                    <div class="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-6 border border-blue-200">
+                        <div class="text-3xl mb-4">🏢</div>
+                        <h3 class="text-xl font-bold text-gray-900 mb-3">Large EU Companies</h3>
+                        <p class="text-gray-700 text-sm">
+                            250+ employees<br/>
+                            €40M+ turnover<br/>
+                            €20M+ balance sheet
+                        </p>
+                    </div>
+                    
+                    <div class="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-6 border border-green-200">
+                        <div class="text-3xl mb-4">📊</div>
+                        <h3 class="text-xl font-bold text-gray-900 mb-3">Listed SMEs</h3>
+                        <p class="text-gray-700 text-sm">
+                            Companies on EU-regulated markets<br/>
+                            Compliance from 2026<br/>
+                            Phased implementation
+                        </p>
+                    </div>
+                    
+                    <div class="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-6 border border-purple-200">
+                        <div class="text-3xl mb-4">🌍</div>
+                        <h3 class="text-xl font-bold text-gray-900 mb-3">Non-EU Companies</h3>
+                        <p class="text-gray-700 text-sm">
+                            €150M+ EU revenue<br/>
+                            EU subsidiary<br/>
+                            Compliance from 2028
+                        </p>
+                    </div>
+                </div>
+
+                <!-- ESRS Standards -->
+                <div class="bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl p-8 border border-gray-200">
+                    <h3 class="text-2xl font-bold text-gray-900 mb-6 text-center">
+                        12 European Sustainability Reporting Standards (ESRS)
+                    </h3>
+                    
+                    <div class="grid md:grid-cols-3 gap-6">
+                        <!-- Environmental -->
+                        <div>
+                            <h4 class="font-bold text-green-700 mb-3 flex items-center">
+                                <span class="text-2xl mr-2">🌱</span>
+                                Environmental (E1-E5)
+                            </h4>
+                            <ul class="text-sm text-gray-700 space-y-1">
+                                <li>• Climate Change (Scope 1, 2, 3)</li>
+                                <li>• Pollution</li>
+                                <li>• Water & Marine Resources</li>
+                                <li>• Biodiversity & Ecosystems</li>
+                                <li>• Resource Use & Circular Economy</li>
+                            </ul>
+                        </div>
+                        
+                        <!-- Social -->
+                        <div>
+                            <h4 class="font-bold text-blue-700 mb-3 flex items-center">
+                                <span class="text-2xl mr-2">👥</span>
+                                Social (S1-S4)
+                            </h4>
+                            <ul class="text-sm text-gray-700 space-y-1">
+                                <li>• Own Workforce</li>
+                                <li>• Workers in Value Chain</li>
+                                <li>• Affected Communities</li>
+                                <li>• Consumers & End-users</li>
+                            </ul>
+                        </div>
+                        
+                        <!-- Governance -->
+                        <div>
+                            <h4 class="font-bold text-purple-700 mb-3 flex items-center">
+                                <span class="text-2xl mr-2">⚖️</span>
+                                Governance (G1)
+                            </h4>
+                            <ul class="text-sm text-gray-700 space-y-1">
+                                <li>• Business Conduct</li>
+                                <li>• Ethics & Compliance</li>
+                                <li>• Anti-corruption</li>
+                                <li>• Stakeholder Engagement</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Core Features -->
+    <section id="features" class="py-20 bg-gradient-to-br from-blue-50 to-white">
+        <div class="container mx-auto px-6">
+            <div class="max-w-6xl mx-auto">
+                <div class="text-center mb-16">
+                    <h2 class="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
+                        Core Features Available Now
+                    </h2>
+                    <p class="text-xl text-gray-600">
+                        Production-ready carbon tracking platform with enterprise-grade features
+                    </p>
+                </div>
+
+                <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                    <!-- Feature 1 -->
+                    <div class="bg-white rounded-2xl p-8 shadow-lg feature-card">
+                        <div class="w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center mb-6">
+                            <span class="text-3xl text-white">🚗</span>
+                        </div>
+                        <h3 class="text-xl font-bold text-gray-900 mb-3">Real-Time Carbon Tracking</h3>
+                        <p class="text-gray-600 mb-4">
+                            Track emissions across transportation, energy, food, waste, and operations using IPCC/EPA/DEFRA factors
+                        </p>
+                        <ul class="text-sm text-gray-600 space-y-1">
+                            <li>✓ 5 emission categories</li>
+                            <li>✓ Unlimited entries</li>
+                            <li>✓ Mobile responsive</li>
+                        </ul>
+                    </div>
+
+                    <!-- Feature 2 -->
+                    <div class="bg-white rounded-2xl p-8 shadow-lg feature-card">
+                        <div class="w-16 h-16 bg-gradient-to-br from-green-500 to-green-600 rounded-xl flex items-center justify-center mb-6">
+                            <span class="text-3xl text-white">📊</span>
+                        </div>
+                        <h3 class="text-xl font-bold text-gray-900 mb-3">Intelligent Analytics</h3>
+                        <p class="text-gray-600 mb-4">
+                            Real-time dashboards with trend analysis, category breakdowns, and goal tracking
+                        </p>
+                        <ul class="text-sm text-gray-600 space-y-1">
+                            <li>✓ Visual dashboards</li>
+                            <li>✓ Historical trends</li>
+                            <li>✓ Export reports</li>
+                        </ul>
+                    </div>
+
+                    <!-- Feature 3 -->
+                    <div class="bg-white rounded-2xl p-8 shadow-lg feature-card">
+                        <div class="w-16 h-16 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center mb-6">
+                            <span class="text-3xl text-white">💡</span>
+                        </div>
+                        <h3 class="text-xl font-bold text-gray-900 mb-3">AI-Powered Recommendations</h3>
+                        <p class="text-gray-600 mb-4">
+                            Personalized reduction strategies with cost-benefit analysis and ROI calculations
+                        </p>
+                        <ul class="text-sm text-gray-600 space-y-1">
+                            <li>✓ Custom strategies</li>
+                            <li>✓ Quick wins</li>
+                            <li>✓ Industry best practices</li>
+                        </ul>
+                    </div>
+
+                    <!-- Feature 4 -->
+                    <div class="bg-white rounded-2xl p-8 shadow-lg feature-card">
+                        <div class="w-16 h-16 bg-gradient-to-br from-yellow-500 to-yellow-600 rounded-xl flex items-center justify-center mb-6">
+                            <span class="text-3xl text-white">🏆</span>
+                        </div>
+                        <h3 class="text-xl font-bold text-gray-900 mb-3">Gamification & Engagement</h3>
+                        <p class="text-gray-600 mb-4">
+                            Achievement badges, team challenges, leaderboards, and streak tracking
+                        </p>
+                        <ul class="text-sm text-gray-600 space-y-1">
+                            <li>✓ 30+ achievements</li>
+                            <li>✓ Team competitions</li>
+                            <li>✓ Points system</li>
+                        </ul>
+                    </div>
+
+                    <!-- Feature 5 -->
+                    <div class="bg-white rounded-2xl p-8 shadow-lg feature-card">
+                        <div class="w-16 h-16 bg-gradient-to-br from-red-500 to-red-600 rounded-xl flex items-center justify-center mb-6">
+                            <span class="text-3xl text-white">👥</span>
+                        </div>
+                        <h3 class="text-xl font-bold text-gray-900 mb-3">Multi-User Support</h3>
+                        <p class="text-gray-600 mb-4">
+                            Role-based access control with approval workflows and audit trails
+                        </p>
+                        <ul class="text-sm text-gray-600 space-y-1">
+                            <li>✓ Admin/User/Viewer roles</li>
+                            <li>✓ Department segregation</li>
+                            <li>✓ Activity audit logs</li>
+                        </ul>
+                    </div>
+
+                    <!-- Feature 6 - CSRD Preview -->
+                    <div class="bg-gradient-to-br from-blue-500 to-purple-600 text-white rounded-2xl p-8 shadow-lg feature-card border-4 border-yellow-400">
+                        <div class="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center mb-6">
+                            <span class="text-3xl">📋</span>
+                        </div>
+                        <h3 class="text-xl font-bold mb-3">CSRD Compliance Module</h3>
+                        <p class="text-blue-100 mb-4">
+                            Full ESRS reporting, XBRL export, audit trails, and third-party verification
+                        </p>
+                        <div class="inline-block bg-yellow-400 text-gray-900 px-4 py-2 rounded-full text-sm font-bold">
+                            🚀 Launching Q1 2026
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Pricing Section -->
+    <section id="pricing" class="py-20 bg-white">
+        <div class="container mx-auto px-6">
+            <div class="max-w-7xl mx-auto">
+                <div class="text-center mb-16">
+                    <h2 class="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
+                        Transparent Pricing
+                    </h2>
+                    <p class="text-xl text-gray-600 mb-4">
+                        Clear tiers, no hidden costs. 85-95% cheaper than traditional consulting.
+                    </p>
+                    <div class="inline-block bg-green-100 text-green-800 px-6 py-2 rounded-full text-sm font-semibold">
+                        💰 Save €100,000+ over 3 years vs. consultants
+                    </div>
+                </div>
+
+                <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+                    <!-- Free Tier -->
+                    <div class="pricing-card bg-white rounded-2xl p-8 shadow-lg">
+                        <div class="text-center mb-6">
+                            <h3 class="text-2xl font-bold text-gray-900 mb-2">Free</h3>
+                            <div class="text-4xl font-bold text-gray-900 mb-2">€0</div>
+                            <div class="text-gray-600 text-sm">Forever</div>
+                        </div>
+                        
+                        <ul class="space-y-3 mb-8">
+                            <li class="flex items-start">
+                                <span class="text-green-500 mr-2">✓</span>
+                                <span class="text-sm text-gray-600">Unlimited emission entries</span>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="text-green-500 mr-2">✓</span>
+                                <span class="text-sm text-gray-600">Basic dashboard</span>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="text-green-500 mr-2">✓</span>
+                                <span class="text-sm text-gray-600">12-month history</span>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="text-red-500 mr-2">✗</span>
+                                <span class="text-sm text-gray-400">CSRD compliance</span>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="text-red-500 mr-2">✗</span>
+                                <span class="text-sm text-gray-400">Team access</span>
+                            </li>
+                        </ul>
+                        
+                        <a href="/app/" class="block text-center bg-gray-200 text-gray-800 px-6 py-3 rounded-xl font-semibold hover:bg-gray-300 transition">
+                            Start Free
+                        </a>
+                        
+                        <p class="text-xs text-gray-500 text-center mt-4">Perfect for individuals</p>
+                    </div>
+
+                    <!-- Basic Tier -->
+                    <div class="pricing-card bg-white rounded-2xl p-8 shadow-lg">
+                        <div class="text-center mb-6">
+                            <h3 class="text-2xl font-bold text-gray-900 mb-2">Basic</h3>
+                            <div class="text-4xl font-bold text-gray-900 mb-2">€29</div>
+                            <div class="text-gray-600 text-sm">/month, billed annually</div>
+                        </div>
+                        
+                        <ul class="space-y-3 mb-8">
+                            <li class="flex items-start">
+                                <span class="text-green-500 mr-2">✓</span>
+                                <span class="text-sm text-gray-600">Everything in Free</span>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="text-green-500 mr-2">✓</span>
+                                <span class="text-sm text-gray-600">Up to 10 team members</span>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="text-green-500 mr-2">✓</span>
+                                <span class="text-sm text-gray-600">5-year data retention</span>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="text-green-500 mr-2">✓</span>
+                                <span class="text-sm text-gray-600">Scheduled PDF reports</span>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="text-red-500 mr-2">✗</span>
+                                <span class="text-sm text-gray-400">CSRD compliance</span>
+                            </li>
+                        </ul>
+                        
+                        <a href="/app/" class="block text-center bg-blue-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-blue-700 transition">
+                            Start Trial
+                        </a>
+                        
+                        <p class="text-xs text-gray-500 text-center mt-4">Small businesses (10-50 employees)</p>
+                    </div>
+
+                    <!-- Professional Tier - Featured -->
+                    <div class="pricing-card featured bg-gradient-to-br from-blue-600 to-purple-600 text-white rounded-2xl p-8 shadow-2xl relative">
+                        <div class="absolute -top-4 left-1/2 transform -translate-x-1/2 bg-yellow-400 text-gray-900 px-4 py-1 rounded-full text-sm font-bold">
+                            🚀 CSRD Ready
+                        </div>
+                        
+                        <div class="text-center mb-6 pt-4">
+                            <h3 class="text-2xl font-bold mb-2">Professional</h3>
+                            <div class="text-4xl font-bold mb-2">€149</div>
+                            <div class="text-blue-100 text-sm">/month, billed annually</div>
+                        </div>
+                        
+                        <ul class="space-y-3 mb-8">
+                            <li class="flex items-start">
+                                <span class="text-yellow-300 mr-2">⭐</span>
+                                <span class="text-sm">CSRD Compliance Module</span>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="text-yellow-300 mr-2">⭐</span>
+                                <span class="text-sm">Up to 50 team members</span>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="text-yellow-300 mr-2">⭐</span>
+                                <span class="text-sm">ESRS E1 reporting</span>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="text-yellow-300 mr-2">⭐</span>
+                                <span class="text-sm">XBRL export</span>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="text-yellow-300 mr-2">⭐</span>
+                                <span class="text-sm">API access</span>
+                            </li>
+                        </ul>
+                        
+                        <a href="/app/" class="block text-center bg-white text-blue-600 px-6 py-3 rounded-xl font-semibold hover:bg-blue-50 transition">
+                            Get Started
+                        </a>
+                        
+                        <p class="text-xs text-blue-100 text-center mt-4">Mid-sized companies (50-250 employees)</p>
+                    </div>
+
+                    <!-- Business Tier -->
+                    <div class="pricing-card bg-white rounded-2xl p-8 shadow-lg">
+                        <div class="text-center mb-6">
+                            <h3 class="text-2xl font-bold text-gray-900 mb-2">Business</h3>
+                            <div class="text-4xl font-bold text-gray-900 mb-2">€449</div>
+                            <div class="text-gray-600 text-sm">/month, billed annually</div>
+                        </div>
+                        
+                        <ul class="space-y-3 mb-8">
+                            <li class="flex items-start">
+                                <span class="text-green-500 mr-2">✓</span>
+                                <span class="text-sm text-gray-600">Everything in Professional</span>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="text-green-500 mr-2">✓</span>
+                                <span class="text-sm text-gray-600">Unlimited team members</span>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="text-green-500 mr-2">✓</span>
+                                <span class="text-sm text-gray-600">All 12 ESRS standards</span>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="text-green-500 mr-2">✓</span>
+                                <span class="text-sm text-gray-600">Multi-entity management</span>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="text-green-500 mr-2">✓</span>
+                                <span class="text-sm text-gray-600">Dedicated account manager</span>
+                            </li>
+                        </ul>
+                        
+                        <a href="/app/" class="block text-center bg-blue-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-blue-700 transition">
+                            Contact Sales
+                        </a>
+                        
+                        <p class="text-xs text-gray-500 text-center mt-4">Large enterprises (250+ employees)</p>
+                    </div>
+                </div>
+
+                <!-- Comparison Table -->
+                <div class="bg-gradient-to-br from-green-50 to-green-100 rounded-2xl p-8 border border-green-200">
+                    <h3 class="text-2xl font-bold text-gray-900 mb-6 text-center">
+                        💰 Cost Comparison: CarbonTrack vs. Alternatives
+                    </h3>
+                    
+                    <div class="overflow-x-auto">
+                        <table class="w-full">
+                            <thead>
+                                <tr class="border-b-2 border-green-300">
+                                    <th class="text-left p-4 text-gray-700">Service</th>
+                                    <th class="text-center p-4 text-gray-700">Initial Setup</th>
+                                    <th class="text-center p-4 text-gray-700">Annual Cost</th>
+                                    <th class="text-center p-4 text-gray-700">3-Year Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="border-b border-green-200">
+                                    <td class="p-4 font-semibold">Traditional Consultant</td>
+                                    <td class="p-4 text-center">€20K-50K</td>
+                                    <td class="p-4 text-center">€30K-100K</td>
+                                    <td class="p-4 text-center font-bold text-red-600">€110K-350K</td>
+                                </tr>
+                                <tr class="border-b border-green-200">
+                                    <td class="p-4 font-semibold">Enterprise Software (SAP/Oracle)</td>
+                                    <td class="p-4 text-center">€100K-500K</td>
+                                    <td class="p-4 text-center">€50K-200K</td>
+                                    <td class="p-4 text-center font-bold text-red-600">€250K-1.1M</td>
+                                </tr>
+                                <tr class="bg-green-200 font-bold">
+                                    <td class="p-4">CarbonTrack Business</td>
+                                    <td class="p-4 text-center">€0</td>
+                                    <td class="p-4 text-center">€4,490</td>
+                                    <td class="p-4 text-center text-green-700 text-xl">€13,470</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <p class="text-center mt-6 text-green-800 font-bold text-lg">
+                        ⭐ Save 85-95% compared to traditional solutions
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Product Roadmap -->
+    <section id="roadmap" class="py-20 bg-gradient-to-br from-purple-50 to-blue-50">
+        <div class="container mx-auto px-6">
+            <div class="max-w-4xl mx-auto">
+                <div class="text-center mb-16">
+                    <h2 class="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
+                        Product Roadmap
+                    </h2>
+                    <p class="text-xl text-gray-600">
+                        Transparent development plan. Building in public with clear milestones.
+                    </p>
+                </div>
+
+                <div class="space-y-8">
+                    <!-- Completed Phases -->
+                    <div class="timeline-item">
+                        <div class="bg-white rounded-xl p-6 shadow-lg">
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="text-xl font-bold text-gray-900">Phase 1-3: Foundation & Scale</h3>
+                                <span class="bg-green-100 text-green-800 px-4 py-1 rounded-full text-sm font-bold">✅ Completed</span>
+                            </div>
+                            <ul class="text-gray-600 space-y-2">
+                                <li>✅ Core carbon tracking engine with 5 emission categories</li>
+                                <li>✅ AI-powered recommendations & gamification system</li>
+                                <li>✅ CloudFront CDN + custom domain (carbontracksystem.com)</li>
+                                <li>✅ Multi-user support with role-based access control</li>
+                                <li>✅ Production-grade AWS infrastructure (99.9% uptime)</li>
+                            </ul>
+                            <p class="text-sm text-gray-500 mt-4">Completed: October - November 2024</p>
+                        </div>
+                    </div>
+
+                    <!-- In Progress -->
+                    <div class="timeline-item">
+                        <div class="bg-gradient-to-br from-blue-500 to-purple-600 text-white rounded-xl p-6 shadow-lg">
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="text-xl font-bold">Phase 4: CSRD Compliance Module</h3>
+                                <span class="bg-yellow-400 text-gray-900 px-4 py-1 rounded-full text-sm font-bold">🚧 90% Complete</span>
+                            </div>
+                            <ul class="text-blue-100 space-y-2">
+                                <li>✅ Backend API (19 endpoints implemented)</li>
+                                <li>✅ Database layer (DynamoDB tables + logic)</li>
+                                <li>✅ ESRS E1 reporting templates</li>
+                                <li>✅ Audit trail system</li>
+                                <li>🚧 Frontend reporting interface (in development)</li>
+                                <li>⏳ PDF/XBRL export functionality</li>
+                            </ul>
+                            <p class="text-sm text-blue-200 mt-4">🎯 Target Launch: January 15, 2026</p>
+                            <p class="text-xs text-blue-200 mt-2">Professional+ subscribers get beta access December 2025</p>
+                        </div>
+                    </div>
+
+                    <!-- Future Phases -->
+                    <div class="timeline-item">
+                        <div class="bg-white rounded-xl p-6 shadow-lg">
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="text-xl font-bold text-gray-900">Phase 5-7: Full ESRS & Enterprise</h3>
+                                <span class="bg-gray-200 text-gray-700 px-4 py-1 rounded-full text-sm font-bold">⏳ Q2-Q4 2026</span>
+                            </div>
+                            <ul class="text-gray-600 space-y-2">
+                                <li>📅 Q2 2026: Full E1-E5 environmental + S1-S4 social standards</li>
+                                <li>📅 Q3 2026: SSO/SAML, white-label, ERP integrations</li>
+                                <li>📅 Q4 2026: SEC Climate Disclosure, TCFD, GRI Standards</li>
+                                <li>🔮 2027+: Mobile apps, carbon offset marketplace, blockchain audit</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- MVP Transparency -->
+                <div class="mt-12 bg-yellow-50 border-2 border-yellow-300 rounded-xl p-8">
+                    <h3 class="text-2xl font-bold text-gray-900 mb-4 flex items-center">
+                        <span class="text-3xl mr-3">🤝</span>
+                        Transparency & Honesty
+                    </h3>
+                    
+                    <div class="grid md:grid-cols-2 gap-6">
+                        <div>
+                            <h4 class="font-bold text-green-700 mb-2">✅ What We're Good At (Today)</h4>
+                            <ul class="text-sm text-gray-700 space-y-1">
+                                <li>• Best-in-class carbon tracking</li>
+                                <li>• Intuitive, fast user interface</li>
+                                <li>• 99.9% uptime on AWS</li>
+                                <li>• Rapid feature development</li>
+                            </ul>
+                        </div>
+                        
+                        <div>
+                            <h4 class="font-bold text-blue-700 mb-2">🚧 What We're Building (2026)</h4>
+                            <ul class="text-sm text-gray-700 space-y-1">
+                                <li>• CSRD compliance features (Q1 2026)</li>
+                                <li>• Enterprise SSO & security (Q2 2026)</li>
+                                <li>• ERP/accounting integrations (Q3 2026)</li>
+                                <li>• Native mobile apps (Q4 2026)</li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <p class="text-gray-700 mt-6 leading-relaxed">
+                        <strong>We believe in building in public.</strong> CarbonTrack is a production-ready MVP with active development of enterprise features. 
+                        Your feedback shapes our roadmap. Early adopters get grandfathered pricing when we launch CSRD module.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="py-20 gradient-bg text-white">
+        <div class="container mx-auto px-6">
+            <div class="max-w-4xl mx-auto text-center">
+                <h2 class="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
+                    Don't Wait for the CSRD Deadline
+                </h2>
+                <p class="text-xl text-blue-100 mb-12">
+                    First reports due in 2025 (for fiscal year 2024 data). Start tracking today to be ready.
+                </p>
+                
+                <div class="flex flex-col sm:flex-row gap-6 justify-center mb-12">
+                    <a href="/app/" class="bg-white text-blue-600 px-10 py-5 rounded-xl font-bold text-xl hover:bg-blue-50 transition shadow-2xl">
+                        Start Free Trial →
+                    </a>
+                    <a href="mailto:ahmedulkabir55@gmail.com" class="bg-blue-500/30 backdrop-blur-sm text-white px-10 py-5 rounded-xl font-bold text-xl hover:bg-blue-500/50 transition border border-blue-400/50">
+                        Book 15-Min Demo
+                    </a>
+                </div>
+                
+                <div class="text-blue-200 text-sm">
+                    <p>✓ No credit card required for free tier</p>
+                    <p>✓ Professional tier includes CSRD module (launching Q1 2026)</p>
+                    <p>✓ Early adopters get grandfathered pricing</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="bg-gray-900 text-white py-12">
+        <div class="container mx-auto px-6">
+            <div class="grid md:grid-cols-4 gap-8 mb-8">
+                <div>
+                    <h3 class="font-bold text-lg mb-4">CarbonTrack</h3>
+                    <p class="text-gray-400 text-sm">
+                        Enterprise carbon intelligence for the CSRD era. Making compliance accessible.
+                    </p>
+                </div>
+                
+                <div>
+                    <h4 class="font-semibold mb-4">Product</h4>
+                    <ul class="space-y-2 text-sm text-gray-400">
+                        <li><a href="#features" class="hover:text-white">Features</a></li>
+                        <li><a href="#pricing" class="hover:text-white">Pricing</a></li>
+                        <li><a href="#roadmap" class="hover:text-white">Roadmap</a></li>
+                        <li><a href="/app/" class="hover:text-white">Sign In</a></li>
+                    </ul>
+                </div>
+                
+                <div>
+                    <h4 class="font-semibold mb-4">CSRD</h4>
+                    <ul class="space-y-2 text-sm text-gray-400">
+                        <li><a href="#csrd" class="hover:text-white">What is CSRD?</a></li>
+                        <li><a href="#csrd" class="hover:text-white">ESRS Standards</a></li>
+                        <li><a href="#csrd" class="hover:text-white">Who Must Comply?</a></li>
+                        <li><a href="mailto:ahmedulkabir55@gmail.com" class="hover:text-white">Book Demo</a></li>
+                    </ul>
+                </div>
+                
+                <div>
+                    <h4 class="font-semibold mb-4">Contact</h4>
+                    <ul class="space-y-2 text-sm text-gray-400">
+                        <li>📧 ahmedulkabir55@gmail.com</li>
+                        <li>🌐 carbontracksystem.com</li>
+                        <li>🔗 <a href="https://www.linkedin.com/company/109247687/" class="hover:text-white">LinkedIn</a></li>
+                        <li>📍 Frankfurt, Germany (EU)</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="border-t border-gray-800 pt-8 text-center text-gray-400 text-sm">
+                <p>&copy; 2025 CarbonTrack. Built with ❤️ for a sustainable future.</p>
+                <p class="mt-2">Production MVP v1.2.0 | CSRD Module launching Q1 2026</p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Smooth scrolling for anchor links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            });
+        });
+    </script>
 </body>
 </html>

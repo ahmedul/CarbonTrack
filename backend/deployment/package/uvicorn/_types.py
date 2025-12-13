@@ -27,13 +27,24 @@ ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 """
-
 from __future__ import annotations
 
 import sys
 import types
-from collections.abc import Awaitable, Iterable, MutableMapping
-from typing import Any, Callable, Literal, Optional, Protocol, TypedDict, Union
+from typing import (
+    Any,
+    Awaitable,
+    Callable,
+    Iterable,
+    Literal,
+    MutableMapping,
+    Optional,
+    Protocol,
+    Tuple,
+    Type,
+    TypedDict,
+    Union,
+)
 
 if sys.version_info >= (3, 11):  # pragma: py-lt-311
     from typing import NotRequired
@@ -42,8 +53,8 @@ else:  # pragma: py-gte-311
 
 # WSGI
 Environ = MutableMapping[str, Any]
-ExcInfo = tuple[type[BaseException], BaseException, Optional[types.TracebackType]]
-StartResponse = Callable[[str, Iterable[tuple[str, str]], Optional[ExcInfo]], None]
+ExcInfo = Tuple[Type[BaseException], BaseException, Optional[types.TracebackType]]
+StartResponse = Callable[[str, Iterable[Tuple[str, str]], Optional[ExcInfo]], None]
 WSGIApp = Callable[[Environ, StartResponse], Union[Iterable[bytes], BaseException]]
 
 
@@ -192,7 +203,6 @@ class WebSocketResponseBodyEvent(TypedDict):
 class WebSocketDisconnectEvent(TypedDict):
     type: Literal["websocket.disconnect"]
     code: int
-    reason: NotRequired[str | None]
 
 
 class WebSocketCloseEvent(TypedDict):
@@ -264,12 +274,14 @@ ASGISendCallable = Callable[[ASGISendEvent], Awaitable[None]]
 
 
 class ASGI2Protocol(Protocol):
-    def __init__(self, scope: Scope) -> None: ...  # pragma: no cover
+    def __init__(self, scope: Scope) -> None:
+        ...  # pragma: no cover
 
-    async def __call__(self, receive: ASGIReceiveCallable, send: ASGISendCallable) -> None: ...  # pragma: no cover
+    async def __call__(self, receive: ASGIReceiveCallable, send: ASGISendCallable) -> None:
+        ...  # pragma: no cover
 
 
-ASGI2Application = type[ASGI2Protocol]
+ASGI2Application = Type[ASGI2Protocol]
 ASGI3Application = Callable[
     [
         Scope,

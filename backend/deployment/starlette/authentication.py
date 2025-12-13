@@ -1,15 +1,23 @@
+from __future__ import annotations
+
 import functools
 import inspect
+import sys
 import typing
 from urllib.parse import urlencode
+
+if sys.version_info >= (3, 10):  # pragma: no cover
+    from typing import ParamSpec
+else:  # pragma: no cover
+    from typing_extensions import ParamSpec
 
 from starlette._utils import is_async_callable
 from starlette.exceptions import HTTPException
 from starlette.requests import HTTPConnection, Request
-from starlette.responses import RedirectResponse, Response
+from starlette.responses import RedirectResponse
 from starlette.websockets import WebSocket
 
-_CallableType = typing.TypeVar("_CallableType", bound=typing.Callable)
+_P = ParamSpec("_P")
 
 
 def has_required_scope(conn: HTTPConnection, scopes: typing.Sequence[str]) -> bool:
@@ -20,13 +28,17 @@ def has_required_scope(conn: HTTPConnection, scopes: typing.Sequence[str]) -> bo
 
 
 def requires(
-    scopes: typing.Union[str, typing.Sequence[str]],
+    scopes: str | typing.Sequence[str],
     status_code: int = 403,
-    redirect: typing.Optional[str] = None,
-) -> typing.Callable[[_CallableType], _CallableType]:
+    redirect: str | None = None,
+) -> typing.Callable[
+    [typing.Callable[_P, typing.Any]], typing.Callable[_P, typing.Any]
+]:
     scopes_list = [scopes] if isinstance(scopes, str) else list(scopes)
 
-    def decorator(func: typing.Callable) -> typing.Callable:
+    def decorator(
+        func: typing.Callable[_P, typing.Any],
+    ) -> typing.Callable[_P, typing.Any]:
         sig = inspect.signature(func)
         for idx, parameter in enumerate(sig.parameters.values()):
             if parameter.name == "request" or parameter.name == "websocket":
@@ -40,9 +52,7 @@ def requires(
         if type_ == "websocket":
             # Handle websocket functions. (Always async)
             @functools.wraps(func)
-            async def websocket_wrapper(
-                *args: typing.Any, **kwargs: typing.Any
-            ) -> None:
+            async def websocket_wrapper(*args: _P.args, **kwargs: _P.kwargs) -> None:
                 websocket = kwargs.get(
                     "websocket", args[idx] if idx < len(args) else None
                 )
@@ -58,19 +68,14 @@ def requires(
         elif is_async_callable(func):
             # Handle async request/response functions.
             @functools.wraps(func)
-            async def async_wrapper(
-                *args: typing.Any, **kwargs: typing.Any
-            ) -> Response:
+            async def async_wrapper(*args: _P.args, **kwargs: _P.kwargs) -> typing.Any:
                 request = kwargs.get("request", args[idx] if idx < len(args) else None)
                 assert isinstance(request, Request)
 
                 if not has_required_scope(request, scopes_list):
                     if redirect is not None:
                         orig_request_qparam = urlencode({"next": str(request.url)})
-                        next_url = "{redirect_path}?{orig_request}".format(
-                            redirect_path=request.url_for(redirect),
-                            orig_request=orig_request_qparam,
-                        )
+                        next_url = f"{request.url_for(redirect)}?{orig_request_qparam}"
                         return RedirectResponse(url=next_url, status_code=303)
                     raise HTTPException(status_code=status_code)
                 return await func(*args, **kwargs)
@@ -80,24 +85,21 @@ def requires(
         else:
             # Handle sync request/response functions.
             @functools.wraps(func)
-            def sync_wrapper(*args: typing.Any, **kwargs: typing.Any) -> Response:
+            def sync_wrapper(*args: _P.args, **kwargs: _P.kwargs) -> typing.Any:
                 request = kwargs.get("request", args[idx] if idx < len(args) else None)
                 assert isinstance(request, Request)
 
                 if not has_required_scope(request, scopes_list):
                     if redirect is not None:
                         orig_request_qparam = urlencode({"next": str(request.url)})
-                        next_url = "{redirect_path}?{orig_request}".format(
-                            redirect_path=request.url_for(redirect),
-                            orig_request=orig_request_qparam,
-                        )
+                        next_url = f"{request.url_for(redirect)}?{orig_request_qparam}"
                         return RedirectResponse(url=next_url, status_code=303)
                     raise HTTPException(status_code=status_code)
                 return func(*args, **kwargs)
 
             return sync_wrapper
 
-    return decorator  # type: ignore[return-value]
+    return decorator
 
 
 class AuthenticationError(Exception):
@@ -107,12 +109,12 @@ class AuthenticationError(Exception):
 class AuthenticationBackend:
     async def authenticate(
         self, conn: HTTPConnection
-    ) -> typing.Optional[typing.Tuple["AuthCredentials", "BaseUser"]]:
+    ) -> tuple[AuthCredentials, BaseUser] | None:
         raise NotImplementedError()  # pragma: no cover
 
 
 class AuthCredentials:
-    def __init__(self, scopes: typing.Optional[typing.Sequence[str]] = None):
+    def __init__(self, scopes: typing.Sequence[str] | None = None):
         self.scopes = [] if scopes is None else list(scopes)
 
 

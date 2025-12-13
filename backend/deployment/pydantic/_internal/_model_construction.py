@@ -1,13 +1,15 @@
 """Private logic for creating models."""
 from __future__ import annotations as _annotations
 
+import builtins
+import operator
 import typing
 import warnings
 import weakref
 from abc import ABCMeta
 from functools import partial
 from types import FunctionType
-from typing import Any, Callable, Generic, Mapping
+from typing import Any, Callable, Generic, NoReturn
 
 import typing_extensions
 from pydantic_core import PydanticUndefined, SchemaSerializer
@@ -17,19 +19,18 @@ from ..errors import PydanticUndefinedAnnotation, PydanticUserError
 from ..plugin._schema_validator import create_schema_validator
 from ..warnings import GenericBeforeBaseModelWarning, PydanticDeprecatedSince20
 from ._config import ConfigWrapper
-from ._decorators import DecoratorInfos, PydanticDescriptorProxy, get_attribute_from_bases
+from ._decorators import DecoratorInfos, PydanticDescriptorProxy, get_attribute_from_bases, unwrap_wrapped_function
 from ._fields import collect_model_fields, is_valid_field_name, is_valid_privateattr_name
-from ._generate_schema import GenerateSchema, generate_pydantic_signature
+from ._generate_schema import GenerateSchema
 from ._generics import PydanticGenericMetadata, get_model_typevars_map
 from ._mock_val_ser import MockValSer, set_model_mocks
 from ._schema_generation_shared import CallbackGetCoreSchemaHandler
+from ._signature import generate_pydantic_signature
 from ._typing_extra import get_cls_types_namespace, is_annotated, is_classvar, parent_frame_namespace
-from ._utils import ClassAttribute
+from ._utils import ClassAttribute, SafeGetItemProxy
 from ._validate_call import ValidateCallWrapper
 
 if typing.TYPE_CHECKING:
-    from inspect import Signature
-
     from ..fields import Field as PydanticModelField
     from ..fields import FieldInfo, ModelPrivateAttr
     from ..main import BaseModel
@@ -92,7 +93,7 @@ class ModelMetaclass(ABCMeta):
             private_attributes = inspect_namespace(
                 namespace, config_wrapper.ignored_types, class_vars, base_field_names
             )
-            if private_attributes:
+            if private_attributes or base_private_attributes:
                 original_model_post_init = get_model_post_init(namespace, bases)
                 if original_model_post_init is not None:
                     # if there are private_attributes and a model_post_init function, we handle both
@@ -110,9 +111,6 @@ class ModelMetaclass(ABCMeta):
 
             namespace['__class_vars__'] = class_vars
             namespace['__private_attributes__'] = {**base_private_attributes, **private_attributes}
-
-            if config_wrapper.frozen:
-                set_default_hash_func(namespace, bases)
 
             cls: type[BaseModel] = super().__new__(mcs, cls_name, bases, namespace, **kwargs)  # type: ignore
 
@@ -140,22 +138,40 @@ class ModelMetaclass(ABCMeta):
                 parent_parameters = getattr(cls, '__pydantic_generic_metadata__', {}).get('parameters', ())
                 parameters = getattr(cls, '__parameters__', None) or parent_parameters
                 if parameters and parent_parameters and not all(x in parameters for x in parent_parameters):
-                    combined_parameters = parent_parameters + tuple(x for x in parameters if x not in parent_parameters)
-                    parameters_str = ', '.join([str(x) for x in combined_parameters])
-                    generic_type_label = f'typing.Generic[{parameters_str}]'
-                    error_message = (
-                        f'All parameters must be present on typing.Generic;'
-                        f' you should inherit from {generic_type_label}.'
-                    )
-                    if Generic not in bases:  # pragma: no cover
-                        # We raise an error here not because it is desirable, but because some cases are mishandled.
-                        # It would be nice to remove this error and still have things behave as expected, it's just
-                        # challenging because we are using a custom `__class_getitem__` to parametrize generic models,
-                        # and not returning a typing._GenericAlias from it.
-                        bases_str = ', '.join([x.__name__ for x in bases] + [generic_type_label])
-                        error_message += (
-                            f' Note: `typing.Generic` must go last: `class {cls.__name__}({bases_str}): ...`)'
+                    from ..root_model import RootModelRootType
+
+                    missing_parameters = tuple(x for x in parameters if x not in parent_parameters)
+                    if RootModelRootType in parent_parameters and RootModelRootType not in parameters:
+                        # This is a special case where the user has subclassed `RootModel`, but has not parametrized
+                        # RootModel with the generic type identifiers being used. Ex:
+                        # class MyModel(RootModel, Generic[T]):
+                        #    root: T
+                        # Should instead just be:
+                        # class MyModel(RootModel[T]):
+                        #   root: T
+                        parameters_str = ', '.join([x.__name__ for x in missing_parameters])
+                        error_message = (
+                            f'{cls.__name__} is a subclass of `RootModel`, but does not include the generic type identifier(s) '
+                            f'{parameters_str} in its parameters. '
+                            f'You should parametrize RootModel directly, e.g., `class {cls.__name__}(RootModel[{parameters_str}]): ...`.'
                         )
+                    else:
+                        combined_parameters = parent_parameters + missing_parameters
+                        parameters_str = ', '.join([str(x) for x in combined_parameters])
+                        generic_type_label = f'typing.Generic[{parameters_str}]'
+                        error_message = (
+                            f'All parameters must be present on typing.Generic;'
+                            f' you should inherit from {generic_type_label}.'
+                        )
+                        if Generic not in bases:  # pragma: no cover
+                            # We raise an error here not because it is desirable, but because some cases are mishandled.
+                            # It would be nice to remove this error and still have things behave as expected, it's just
+                            # challenging because we are using a custom `__class_getitem__` to parametrize generic models,
+                            # and not returning a typing._GenericAlias from it.
+                            bases_str = ', '.join([x.__name__ for x in bases] + [generic_type_label])
+                            error_message += (
+                                f' Note: `typing.Generic` must go last: `class {cls.__name__}({bases_str}): ...`)'
+                            )
                     raise TypeError(error_message)
 
                 cls.__pydantic_generic_metadata__ = {
@@ -179,6 +195,10 @@ class ModelMetaclass(ABCMeta):
 
             types_namespace = get_cls_types_namespace(cls, parent_namespace)
             set_model_fields(cls, bases, config_wrapper, types_namespace)
+
+            if config_wrapper.frozen and '__hash__' not in namespace:
+                set_default_hash_func(cls, bases)
+
             complete_model_class(
                 cls,
                 cls_name,
@@ -187,6 +207,13 @@ class ModelMetaclass(ABCMeta):
                 types_namespace=types_namespace,
                 create_model_module=_create_model_module,
             )
+
+            # If this is placed before the complete_model_class call above,
+            # the generic computed fields return type is set to PydanticUndefined
+            cls.model_computed_fields = {k: v.info for k, v in cls.__pydantic_decorators__.computed_fields.items()}
+
+            set_deprecated_descriptors(cls)
+
             # using super(cls, cls) on the next line ensures we only call the parent class's __pydantic_init_subclass__
             # I believe the `type: ignore` is only necessary because mypy doesn't realize that this code branch is
             # only hit for _proper_ subclasses of BaseModel
@@ -215,7 +242,7 @@ class ModelMetaclass(ABCMeta):
             raise AttributeError(item)
 
     @classmethod
-    def __prepare__(cls, *args: Any, **kwargs: Any) -> Mapping[str, object]:
+    def __prepare__(cls, *args: Any, **kwargs: Any) -> dict[str, object]:
         return _ModelNamespaceDict()
 
     def __instancecheck__(self, instance: Any) -> bool:
@@ -241,12 +268,18 @@ class ModelMetaclass(ABCMeta):
         return field_names, class_vars, private_attributes
 
     @property
-    @deprecated(
-        'The `__fields__` attribute is deprecated, use `model_fields` instead.', category=PydanticDeprecatedSince20
-    )
+    @deprecated('The `__fields__` attribute is deprecated, use `model_fields` instead.', category=None)
     def __fields__(self) -> dict[str, FieldInfo]:
-        warnings.warn('The `__fields__` attribute is deprecated, use `model_fields` instead.', DeprecationWarning)
+        warnings.warn(
+            'The `__fields__` attribute is deprecated, use `model_fields` instead.', PydanticDeprecatedSince20
+        )
         return self.model_fields  # type: ignore
+
+    def __dir__(self) -> list[str]:
+        attributes = list(super().__dir__())
+        if '__fields__' in attributes:
+            attributes.remove('__fields__')
+        return attributes
 
 
 def init_private_attributes(self: BaseModel, __context: Any) -> None:
@@ -322,6 +355,7 @@ def inspect_namespace(  # noqa C901
         elif (
             isinstance(value, type)
             and value.__module__ == namespace['__module__']
+            and '__qualname__' in namespace
             and value.__qualname__.startswith(namespace['__qualname__'])
         ):
             # `value` is a nested type defined in this namespace; don't error
@@ -396,19 +430,33 @@ def inspect_namespace(  # noqa C901
     return private_attributes
 
 
-def set_default_hash_func(namespace: dict[str, Any], bases: tuple[type[Any], ...]) -> None:
-    if '__hash__' in namespace:
-        return
-
+def set_default_hash_func(cls: type[BaseModel], bases: tuple[type[Any], ...]) -> None:
     base_hash_func = get_attribute_from_bases(bases, '__hash__')
-    if base_hash_func in {None, object.__hash__}:
-        # If `__hash__` is None _or_ `object.__hash__`, we generate a hash function.
-        # It will be `None` if not overridden from BaseModel, but may be `object.__hash__` if there is another
+    new_hash_func = make_hash_func(cls)
+    if base_hash_func in {None, object.__hash__} or getattr(base_hash_func, '__code__', None) == new_hash_func.__code__:
+        # If `__hash__` is some default, we generate a hash function.
+        # It will be `None` if not overridden from BaseModel.
+        # It may be `object.__hash__` if there is another
         # parent class earlier in the bases which doesn't override `__hash__` (e.g. `typing.Generic`).
-        def hash_func(self: Any) -> int:
-            return hash(self.__class__) + hash(tuple(self.__dict__.values()))
+        # It may be a value set by `set_default_hash_func` if `cls` is a subclass of another frozen model.
+        # In the last case we still need a new hash function to account for new `model_fields`.
+        cls.__hash__ = new_hash_func
 
-        namespace['__hash__'] = hash_func
+
+def make_hash_func(cls: type[BaseModel]) -> Any:
+    getter = operator.itemgetter(*cls.model_fields.keys()) if cls.model_fields else lambda _: 0
+
+    def hash_func(self: Any) -> int:
+        try:
+            return hash(getter(self.__dict__))
+        except KeyError:
+            # In rare cases (such as when using the deprecated copy method), the __dict__ may not contain
+            # all model fields, which is how we can get here.
+            # getter(self.__dict__) is much faster than any 'safe' method that accounts for missing keys,
+            # and wrapping it in a `try` doesn't slow things down much in the common case.
+            return hash(getter(SafeGetItemProxy(self.__dict__)))
+
+    return hash_func
 
 
 def set_model_fields(
@@ -520,25 +568,64 @@ def complete_model_class(
 
     # set __signature__ attr only for model class, but not for its instances
     cls.__signature__ = ClassAttribute(
-        '__signature__', generate_model_signature(cls.__init__, cls.model_fields, config_wrapper)
+        '__signature__',
+        generate_pydantic_signature(init=cls.__init__, fields=cls.model_fields, config_wrapper=config_wrapper),
     )
     return True
 
 
-def generate_model_signature(
-    init: Callable[..., None], fields: dict[str, FieldInfo], config_wrapper: ConfigWrapper
-) -> Signature:
-    """Generate signature for model based on its fields.
+def set_deprecated_descriptors(cls: type[BaseModel]) -> None:
+    """Set data descriptors on the class for deprecated fields."""
+    for field, field_info in cls.model_fields.items():
+        if (msg := field_info.deprecation_message) is not None:
+            desc = _DeprecatedFieldDescriptor(msg)
+            desc.__set_name__(cls, field)
+            setattr(cls, field, desc)
 
-    Args:
-        init: The class init.
-        fields: The model fields.
-        config_wrapper: The config wrapper instance.
+    for field, computed_field_info in cls.model_computed_fields.items():
+        if (
+            (msg := computed_field_info.deprecation_message) is not None
+            # Avoid having two warnings emitted:
+            and not hasattr(unwrap_wrapped_function(computed_field_info.wrapped_property), '__deprecated__')
+        ):
+            desc = _DeprecatedFieldDescriptor(msg, computed_field_info.wrapped_property)
+            desc.__set_name__(cls, field)
+            setattr(cls, field, desc)
 
-    Returns:
-        The model signature.
+
+class _DeprecatedFieldDescriptor:
+    """Data descriptor used to emit a runtime deprecation warning before accessing a deprecated field.
+
+    Attributes:
+        msg: The deprecation message to be emitted.
+        wrapped_property: The property instance if the deprecated field is a computed field, or `None`.
+        field_name: The name of the field being deprecated.
     """
-    return generate_pydantic_signature(init, fields, config_wrapper)
+
+    field_name: str
+
+    def __init__(self, msg: str, wrapped_property: property | None = None) -> None:
+        self.msg = msg
+        self.wrapped_property = wrapped_property
+
+    def __set_name__(self, cls: type[BaseModel], name: str) -> None:
+        self.field_name = name
+
+    def __get__(self, obj: BaseModel | None, obj_type: type[BaseModel] | None = None) -> Any:
+        if obj is None:
+            raise AttributeError(self.field_name)
+
+        warnings.warn(self.msg, builtins.DeprecationWarning, stacklevel=2)
+
+        if self.wrapped_property is not None:
+            return self.wrapped_property.__get__(obj, obj_type)
+        return obj.__dict__[self.field_name]
+
+    # Defined to take precedence over the instance's dictionary
+    # Note that it will not be called when setting a value on a model instance
+    # as `BaseModel.__setattr__` is defined and takes priority.
+    def __set__(self, obj: Any, value: Any) -> NoReturn:
+        raise AttributeError(self.field_name)
 
 
 class _PydanticWeakRef:

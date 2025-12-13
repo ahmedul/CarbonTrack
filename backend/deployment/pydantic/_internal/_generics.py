@@ -52,17 +52,13 @@ else:
             self.size_limit = size_limit
             super().__init__()
 
-        def __setitem__(self, __key: Any, __value: Any) -> None:
-            super().__setitem__(__key, __value)
+        def __setitem__(self, key: Any, value: Any, /) -> None:
+            super().__setitem__(key, value)
             if len(self) > self.size_limit:
                 excess = len(self) - self.size_limit + self.size_limit // 10
                 to_remove = list(self.keys())[:excess]
-                for key in to_remove:
-                    del self[key]
-
-        def __class_getitem__(cls, *args: Any) -> Any:
-            # to avoid errors with 3.7
-            return cls
+                for k in to_remove:
+                    del self[k]
 
 
 # weak dictionaries allow the dynamically created parametrized versions of generic models to get collected
@@ -171,7 +167,7 @@ def _get_caller_frame_info(depth: int = 2) -> tuple[str | None, bool]:
         depth: The depth to get the frame.
 
     Returns:
-        A tuple contains `module_nam` and `called_globally`.
+        A tuple contains `module_name` and `called_globally`.
 
     Raises:
         RuntimeError: If the function is not called inside a function.

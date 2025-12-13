@@ -31,14 +31,14 @@ class FileFilter:
             if is_dir:
                 self.exclude_dirs.append(p)
             else:
-                self.excludes.append(e)  # pragma: full coverage
+                self.excludes.append(e)
         self.excludes = list(set(self.excludes))
 
     def __call__(self, path: Path) -> bool:
         for include_pattern in self.includes:
             if path.match(include_pattern):
                 if str(path).endswith(include_pattern):
-                    return True  # pragma: full coverage
+                    return True
 
                 for exclude_dir in self.exclude_dirs:
                     if exclude_dir in path.parents:
@@ -46,7 +46,7 @@ class FileFilter:
 
                 for exclude_pattern in self.excludes:
                     if path.match(exclude_pattern):
-                        return False  # pragma: full coverage
+                        return False
 
                 return True
         return False
@@ -63,7 +63,10 @@ class WatchFilesReload(BaseReload):
         self.reloader_name = "WatchFiles"
         self.reload_dirs = []
         for directory in config.reload_dirs:
-            self.reload_dirs.append(directory)
+            if Path.cwd() not in directory.parents:
+                self.reload_dirs.append(directory)
+        if Path.cwd() not in self.reload_dirs:
+            self.reload_dirs.append(Path.cwd())
 
         self.watch_filter = FileFilter(config)
         self.watcher = watch(

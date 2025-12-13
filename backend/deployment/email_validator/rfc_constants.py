@@ -12,7 +12,7 @@ DOT_ATOM_TEXT = re.compile('[' + ATEXT + ']+(?:\\.[' + ATEXT + r']+)*\Z')
 # addresses to also include three specific ranges of UTF8 defined in
 # RFC 3629 section 4, which appear to be the Unicode code points from
 # U+0080 to U+10FFFF.
-ATEXT_INTL = ATEXT + u"\u0080-\U0010FFFF"
+ATEXT_INTL = ATEXT + "\u0080-\U0010FFFF"
 ATEXT_INTL_RE = re.compile('[.' + ATEXT_INTL + ']')  # ATEXT_INTL plus dots
 DOT_ATOM_TEXT_INTL = re.compile('[' + ATEXT_INTL + ']+(?:\\.[' + ATEXT_INTL + r']+)*\Z')
 
@@ -42,11 +42,11 @@ QTEXT_INTL = re.compile(r"[\u0020-\u007E\u0080-\U0010FFFF]")
 EMAIL_MAX_LENGTH = 254
 LOCAL_PART_MAX_LENGTH = 64
 DNS_LABEL_LENGTH_LIMIT = 63  # in "octets", RFC 1035 2.3.1
-DOMAIN_MAX_LENGTH = 255  # in "octets", RFC 1035 2.3.4 and RFC 5321 4.5.3.1.2
+DOMAIN_MAX_LENGTH = 253  # in "octets" as transmitted, RFC 1035 2.3.4 and RFC 5321 4.5.3.1.2, and see https://stackoverflow.com/questions/32290167/what-is-the-maximum-length-of-a-dns-name
 
 # RFC 2142
 CASE_INSENSITIVE_MAILBOX_NAMES = [
-    'info', 'marking', 'sales', 'support',  # section 3
+    'info', 'marketing', 'sales', 'support',  # section 3
     'abuse', 'noc', 'security',  # section 4
     'postmaster', 'hostmaster', 'usenet', 'news', 'webmaster', 'www', 'uucp', 'ftp',  # section 5
 ]

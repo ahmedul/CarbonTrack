@@ -3,11 +3,12 @@ from __future__ import annotations as _annotations
 
 import dataclasses as _dataclasses
 import re
+from importlib.metadata import version
 from ipaddress import IPv4Address, IPv4Interface, IPv4Network, IPv6Address, IPv6Interface, IPv6Network
 from typing import TYPE_CHECKING, Any
 
 from pydantic_core import MultiHostUrl, PydanticCustomError, Url, core_schema
-from typing_extensions import Annotated, TypeAlias
+from typing_extensions import Annotated, Self, TypeAlias
 
 from ._internal import _fields, _repr, _schema_generation_shared
 from ._migration import getattr_migration
@@ -27,7 +28,10 @@ __all__ = [
     'AnyUrl',
     'AnyHttpUrl',
     'FileUrl',
+    'FtpUrl',
     'HttpUrl',
+    'WebsocketUrl',
+    'AnyWebsocketUrl',
     'UrlConstraints',
     'EmailStr',
     'NameEmail',
@@ -40,9 +44,11 @@ __all__ = [
     'RedisDsn',
     'MongoDsn',
     'KafkaDsn',
+    'NatsDsn',
     'validate_email',
     'MySQLDsn',
     'MariaDBDsn',
+    'ClickHouseDsn',
 ]
 
 
@@ -117,7 +123,7 @@ from pydantic import BaseModel, HttpUrl, ValidationError
 class MyModel(BaseModel):
     url: HttpUrl
 
-m = MyModel(url='http://www.example.com')
+m = MyModel(url='http://www.example.com')  # (1)!
 print(m.url)
 #> http://www.example.com/
 
@@ -141,6 +147,8 @@ except ValidationError as e:
       Input should be a valid URL, relative URL without a base [type=url_parsing, input_value='not a url', input_type=str]
     '''
 ```
+
+1. Note: mypy would prefer `m = MyModel(url=HttpUrl('http://www.example.com'))`, but Pydantic will convert the string to an HttpUrl instance anyway.
 
 "International domains" (e.g. a URL where the host or TLD includes non-ascii characters) will be encoded via
 [punycode](https://en.wikipedia.org/wiki/Punycode) (see
@@ -179,10 +187,29 @@ print(m3.url)
     Also, Chrome, Firefox, and Safari all currently accept `http://exam_ple.com` as a URL, so we're in good
     (or at least big) company.
 """
+AnyWebsocketUrl = Annotated[Url, UrlConstraints(allowed_schemes=['ws', 'wss'])]
+"""A type that will accept any ws or wss URL.
+
+* TLD not required
+* Host required
+"""
+WebsocketUrl = Annotated[Url, UrlConstraints(max_length=2083, allowed_schemes=['ws', 'wss'])]
+"""A type that will accept any ws or wss URL.
+
+* TLD required
+* Host required
+* Max length 2083
+"""
 FileUrl = Annotated[Url, UrlConstraints(allowed_schemes=['file'])]
 """A type that will accept any file URL.
 
 * Host not required
+"""
+FtpUrl = Annotated[Url, UrlConstraints(allowed_schemes=['ftp'])]
+"""A type that will accept ftp URL.
+
+* TLD not required
+* Host required
 """
 PostgresDsn = Annotated[
     MultiHostUrl,
@@ -309,6 +336,16 @@ KafkaDsn = Annotated[Url, UrlConstraints(allowed_schemes=['kafka'], default_host
 * TLD not required
 * Host required
 """
+NatsDsn = Annotated[
+    MultiHostUrl, UrlConstraints(allowed_schemes=['nats', 'tls', 'ws'], default_host='localhost', default_port=4222)
+]
+"""A type that will accept any NATS DSN.
+
+NATS is a connective technology built for the ever increasingly hyper-connected world.
+It is a single technology that enables applications to securely communicate across
+any combination of cloud vendors, on-premise, edge, web and mobile, and devices.
+More: https://nats.io
+"""
 MySQLDsn = Annotated[
     Url,
     UrlConstraints(
@@ -344,6 +381,20 @@ MariaDBDsn = Annotated[
 * TLD not required
 * Host required
 """
+ClickHouseDsn = Annotated[
+    Url,
+    UrlConstraints(
+        allowed_schemes=['clickhouse+native', 'clickhouse+asynch'],
+        default_host='localhost',
+        default_port=9000,
+    ),
+]
+"""A type that will accept any ClickHouse DSN.
+
+* User info required
+* TLD not required
+* Host required
+"""
 
 
 def import_email_validator() -> None:
@@ -352,6 +403,8 @@ def import_email_validator() -> None:
         import email_validator
     except ImportError as e:
         raise ImportError('email-validator is not installed, run `pip install pydantic[email]`') from e
+    if not version('email-validator').partition('.')[0] == '2':
+        raise ImportError('email-validator version >= 2.0 required, run pip install -U email-validator')
 
 
 if TYPE_CHECKING:
@@ -399,8 +452,8 @@ else:
             return field_schema
 
         @classmethod
-        def _validate(cls, __input_value: str) -> str:
-            return validate_email(__input_value)[1]
+        def _validate(cls, input_value: str, /) -> str:
+            return validate_email(input_value)[1]
 
 
 class NameEmail(_repr.Representation):
@@ -463,25 +516,32 @@ class NameEmail(_repr.Representation):
         _handler: GetCoreSchemaHandler,
     ) -> core_schema.CoreSchema:
         import_email_validator()
+
         return core_schema.no_info_after_validator_function(
             cls._validate,
-            core_schema.union_schema(
-                [core_schema.is_instance_schema(cls), core_schema.str_schema()],
-                custom_error_type='name_email_type',
-                custom_error_message='Input is not a valid NameEmail',
+            core_schema.json_or_python_schema(
+                json_schema=core_schema.str_schema(),
+                python_schema=core_schema.union_schema(
+                    [core_schema.is_instance_schema(cls), core_schema.str_schema()],
+                    custom_error_type='name_email_type',
+                    custom_error_message='Input is not a valid NameEmail',
+                ),
+                serialization=core_schema.to_string_ser_schema(),
             ),
-            serialization=core_schema.to_string_ser_schema(),
         )
 
     @classmethod
-    def _validate(cls, __input_value: NameEmail | str) -> NameEmail:
-        if isinstance(__input_value, cls):
-            return __input_value
+    def _validate(cls, input_value: Self | str, /) -> Self:
+        if isinstance(input_value, cls):
+            return input_value
         else:
-            name, email = validate_email(__input_value)  # type: ignore[arg-type]
+            name, email = validate_email(input_value)
             return cls(name, email)
 
     def __str__(self) -> str:
+        if '@' in self.name:
+            return f'"{self.name}" <{self.email}>'
+
         return f'{self.name} <{self.email}>'
 
 
@@ -548,8 +608,8 @@ class IPvAnyAddress:
         )
 
     @classmethod
-    def _validate(cls, __input_value: Any) -> IPv4Address | IPv6Address:
-        return cls(__input_value)  # type: ignore[return-value]
+    def _validate(cls, input_value: Any, /) -> IPv4Address | IPv6Address:
+        return cls(input_value)  # type: ignore[return-value]
 
 
 class IPvAnyInterface:
@@ -588,8 +648,8 @@ class IPvAnyInterface:
         )
 
     @classmethod
-    def _validate(cls, __input_value: NetworkType) -> IPv4Interface | IPv6Interface:
-        return cls(__input_value)  # type: ignore[return-value]
+    def _validate(cls, input_value: NetworkType, /) -> IPv4Interface | IPv6Interface:
+        return cls(input_value)  # type: ignore[return-value]
 
 
 class IPvAnyNetwork:
@@ -630,8 +690,8 @@ class IPvAnyNetwork:
         )
 
     @classmethod
-    def _validate(cls, __input_value: NetworkType) -> IPv4Network | IPv6Network:
-        return cls(__input_value)  # type: ignore[return-value]
+    def _validate(cls, input_value: NetworkType, /) -> IPv4Network | IPv6Network:
+        return cls(input_value)  # type: ignore[return-value]
 
 
 def _build_pretty_email_regex() -> re.Pattern[str]:

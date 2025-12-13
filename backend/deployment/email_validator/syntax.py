@@ -26,7 +26,6 @@ def split_email(email):
         # Since backslash-escaping is no longer needed because
         # the quotes are removed, remove backslash-escaping
         # to return in the normalized form.
-        import re
         local_part = re.sub(r"\\(.)", "\\1", local_part)
 
         return local_part, domain_part, True
@@ -72,14 +71,14 @@ def validate_email_local_part(local: str, allow_smtputf8: bool = True, allow_emp
     if len(local) == 0:
         if not allow_empty_local:
             raise EmailSyntaxError("There must be something before the @-sign.")
-        else:
-            # The caller allows an empty local part. Useful for validating certain
-            # Postfix aliases.
-            return {
-                "local_part": local,
-                "ascii_local_part": local,
-                "smtputf8": False,
-            }
+
+        # The caller allows an empty local part. Useful for validating certain
+        # Postfix aliases.
+        return {
+            "local_part": local,
+            "ascii_local_part": local,
+            "smtputf8": False,
+        }
 
     # Check the length of the local part by counting characters.
     # (RFC 5321 4.5.3.1.1)
@@ -124,11 +123,11 @@ def validate_email_local_part(local: str, allow_smtputf8: bool = True, allow_emp
             # Check for invalid characters against the non-internationalized
             # permitted character set.
             # (RFC 5322 3.2.3)
-            bad_chars = set(
+            bad_chars = {
                 safe_character_display(c)
                 for c in local
                 if not ATEXT_RE.match(c)
-            )
+            }
             if bad_chars:
                 raise EmailSyntaxError("Internationalized characters before the @-sign are not supported: " + ", ".join(sorted(bad_chars)) + ".")
 
@@ -148,20 +147,20 @@ def validate_email_local_part(local: str, allow_smtputf8: bool = True, allow_emp
         # (RFC 5321 4.1.2. RFC 5322 lists additional permitted *obsolete*
         # characters which are *not* allowed here. RFC 6531 section 3.3
         # extends the range to UTF8 strings.)
-        bad_chars = set(
+        bad_chars = {
             safe_character_display(c)
             for c in local
             if not QTEXT_INTL.match(c)
-        )
+        }
         if bad_chars:
             raise EmailSyntaxError("The email address contains invalid characters in quotes before the @-sign: " + ", ".join(sorted(bad_chars)) + ".")
 
         # See if any characters are outside of the ASCII range.
-        bad_chars = set(
+        bad_chars = {
             safe_character_display(c)
             for c in local
             if not (32 <= ord(c) <= 126)
-        )
+        }
         if bad_chars:
             requires_smtputf8 = True
 
@@ -191,8 +190,8 @@ def validate_email_local_part(local: str, allow_smtputf8: bool = True, allow_emp
         # want to have an unhandled exception later.
         try:
             local.encode("utf8")
-        except ValueError:
-            raise EmailSyntaxError("The email address contains an invalid character.")
+        except ValueError as e:
+            raise EmailSyntaxError("The email address contains an invalid character.") from e
 
         # If this address passes only by the quoted string form, re-quote it
         # and backslash-escape quotes and backslashes (removing any unnecessary
@@ -213,11 +212,11 @@ def validate_email_local_part(local: str, allow_smtputf8: bool = True, allow_emp
 
     # Check for invalid characters.
     # (RFC 5322 3.2.3, plus RFC 6531 3.3)
-    bad_chars = set(
+    bad_chars = {
         safe_character_display(c)
         for c in local
         if not ATEXT_INTL_RE.match(c)
-    )
+    }
     if bad_chars:
         raise EmailSyntaxError("The email address contains invalid characters before the @-sign: " + ", ".join(sorted(bad_chars)) + ".")
 
@@ -264,7 +263,7 @@ def check_unsafe_chars(s, allow_space=False):
             # as far as I can tell, but they violate the spirit of the non-internationalized
             # specification that email addresses do not contain line breaks when not quoted.
             bad_chars.add(c)
-        elif category[0] in ("C", "Z"):
+        elif category[0] == "C":
             # Control, format, surrogate, private use, and unassigned code points (C)
             # are all unsafe in various ways. Control and format characters can affect
             # text rendering if the email address is concatenated with other text.
@@ -306,11 +305,11 @@ def validate_email_domain_name(domain, test_environment=False, globally_delivera
 
     # Check for invalid characters before normalization.
     # (RFC 952 plus RFC 6531 section 3.3 for internationalized addresses)
-    bad_chars = set(
+    bad_chars = {
         safe_character_display(c)
         for c in domain
         if not ATEXT_HOSTNAME_INTL.match(c)
-    )
+    }
     if bad_chars:
         raise EmailSyntaxError("The part after the @-sign contains invalid characters: " + ", ".join(sorted(bad_chars)) + ".")
 
@@ -322,15 +321,17 @@ def validate_email_domain_name(domain, test_environment=False, globally_delivera
 
     # Perform UTS-46 normalization, which includes casefolding, NFC normalization,
     # and converting all label separators (the period/full stop, fullwidth full stop,
-    # ideographic full stop, and halfwidth ideographic full stop) to basic periods.
+    # ideographic full stop, and halfwidth ideographic full stop) to regular dots.
     # It will also raise an exception if there is an invalid character in the input,
-    # such as "⒈" which is invalid because it would expand to include a period.
+    # such as "⒈" which is invalid because it would expand to include a dot.
+    # Since several characters are normalized to a dot, this has to come before
+    # checks related to dots, like check_dot_atom which comes next.
     try:
         domain = idna.uts46_remap(domain, std3_rules=False, transitional=False)
     except idna.IDNAError as e:
-        raise EmailSyntaxError(f"The part after the @-sign contains invalid characters ({e}).")
+        raise EmailSyntaxError(f"The part after the @-sign contains invalid characters ({e}).") from e
 
-    # The domain part is made up period-separated "labels." Each label must
+    # The domain part is made up dot-separated "labels." Each label must
     # have at least one character and cannot start or end with dashes, which
     # means there are some surprising restrictions on periods and dashes.
     # Check that before we do IDNA encoding because the IDNA library gives
@@ -362,6 +363,8 @@ def validate_email_domain_name(domain, test_environment=False, globally_delivera
         # For ASCII-only domains, the transformation does nothing and is safe to
         # apply. However, to ensure we don't rely on the idna library for basic
         # syntax checks, we don't use it if it's not needed.
+        #
+        # uts46 is off here because it is handled above.
         try:
             ascii_domain = idna.encode(domain, uts46=False).decode("ascii")
         except idna.IDNAError as e:
@@ -370,8 +373,11 @@ def validate_email_domain_name(domain, test_environment=False, globally_delivera
                 # the length check is applied to a string that is different from the
                 # one the user supplied. Also I'm not sure if the length check applies
                 # to the internationalized form, the IDNA ASCII form, or even both!
-                raise EmailSyntaxError("The email address is too long after the @-sign.")
-            raise EmailSyntaxError(f"The part after the @-sign contains invalid characters ({e}).")
+                raise EmailSyntaxError("The email address is too long after the @-sign.") from e
+
+            # Other errors seem to not be possible because the call to idna.uts46_remap
+            # would have already raised them.
+            raise EmailSyntaxError(f"The part after the @-sign contains invalid characters ({e}).") from e
 
         # Check the syntax of the string returned by idna.encode.
         # It should never fail.
@@ -433,15 +439,15 @@ def validate_email_domain_name(domain, test_environment=False, globally_delivera
     try:
         domain_i18n = idna.decode(ascii_domain.encode('ascii'))
     except idna.IDNAError as e:
-        raise EmailSyntaxError(f"The part after the @-sign is not valid IDNA ({e}).")
+        raise EmailSyntaxError(f"The part after the @-sign is not valid IDNA ({e}).") from e
 
     # Check for invalid characters after normalization. These
     # should never arise. See the similar checks above.
-    bad_chars = set(
+    bad_chars = {
         safe_character_display(c)
         for c in domain
         if not ATEXT_HOSTNAME_INTL.match(c)
-    )
+    }
     if bad_chars:
         raise EmailSyntaxError("The part after the @-sign contains invalid characters: " + ", ".join(sorted(bad_chars)) + ".")
     check_unsafe_chars(domain)
@@ -511,7 +517,7 @@ def validate_email_domain_literal(domain_literal):
         try:
             addr = ipaddress.IPv4Address(domain_literal)
         except ValueError as e:
-            raise EmailSyntaxError(f"The address in brackets after the @-sign is not valid: It is not an IPv4 address ({e}) or is missing an address literal tag.")
+            raise EmailSyntaxError(f"The address in brackets after the @-sign is not valid: It is not an IPv4 address ({e}) or is missing an address literal tag.") from e
 
         # Return the IPv4Address object and the domain back unchanged.
         return {
@@ -524,7 +530,7 @@ def validate_email_domain_literal(domain_literal):
         try:
             addr = ipaddress.IPv6Address(domain_literal[5:])
         except ValueError as e:
-            raise EmailSyntaxError(f"The IPv6 address in brackets after the @-sign is not valid ({e}).")
+            raise EmailSyntaxError(f"The IPv6 address in brackets after the @-sign is not valid ({e}).") from e
 
         # Return the IPv6Address object and construct a normalized
         # domain literal.
@@ -544,11 +550,11 @@ def validate_email_domain_literal(domain_literal):
 
     # Check for permitted ASCII characters. This actually doesn't matter
     # since there will be an exception after anyway.
-    bad_chars = set(
+    bad_chars = {
         safe_character_display(c)
         for c in domain_literal
         if not DOMAIN_LITERAL_CHARS.match(c)
-    )
+    }
     if bad_chars:
         raise EmailSyntaxError("The part after the @-sign contains invalid characters in brackets: " + ", ".join(sorted(bad_chars)) + ".")
 

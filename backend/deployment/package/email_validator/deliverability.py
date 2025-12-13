@@ -1,31 +1,24 @@
-from typing import Any, List, Optional, Tuple, TypedDict
+from typing import Optional, Any, Dict
 
 import ipaddress
 
-from .exceptions import EmailUndeliverableError
+from .exceptions_types import EmailUndeliverableError
 
 import dns.resolver
 import dns.exception
 
 
-def caching_resolver(*, timeout: Optional[int] = None, cache: Any = None, dns_resolver: Optional[dns.resolver.Resolver] = None) -> dns.resolver.Resolver:
+def caching_resolver(*, timeout: Optional[int] = None, cache=None, dns_resolver=None):
     if timeout is None:
         from . import DEFAULT_TIMEOUT
         timeout = DEFAULT_TIMEOUT
     resolver = dns_resolver or dns.resolver.Resolver()
-    resolver.cache = cache or dns.resolver.LRUCache()
-    resolver.lifetime = timeout  # timeout, in seconds
+    resolver.cache = cache or dns.resolver.LRUCache()  # type: ignore
+    resolver.lifetime = timeout  # type: ignore # timeout, in seconds
     return resolver
 
 
-DeliverabilityInfo = TypedDict("DeliverabilityInfo", {
-    "mx": List[Tuple[int, str]],
-    "mx_fallback_type": Optional[str],
-    "unknown-deliverability": str,
-}, total=False)
-
-
-def validate_email_deliverability(domain: str, domain_i18n: str, timeout: Optional[int] = None, dns_resolver: Optional[dns.resolver.Resolver] = None) -> DeliverabilityInfo:
+def validate_email_deliverability(domain: str, domain_i18n: str, timeout: Optional[int] = None, dns_resolver=None):
     # Check that the domain resolves to an MX record. If there is no MX record,
     # try an A or AAAA record which is a deprecated fallback for deliverability.
     # Raises an EmailUndeliverableError on failure. On success, returns a dict
@@ -43,7 +36,7 @@ def validate_email_deliverability(domain: str, domain_i18n: str, timeout: Option
     elif timeout is not None:
         raise ValueError("It's not valid to pass both timeout and dns_resolver.")
 
-    deliverability_info: DeliverabilityInfo = {}
+    deliverability_info: Dict[str, Any] = {}
 
     try:
         try:
@@ -76,9 +69,9 @@ def validate_email_deliverability(domain: str, domain_i18n: str, timeout: Option
             # https://www.iana.org/assignments/iana-ipv4-special-registry/iana-ipv4-special-registry.xhtml
             # https://www.iana.org/assignments/iana-ipv6-special-registry/iana-ipv6-special-registry.xhtml
             # (Issue #134.)
-            def is_global_addr(address: Any) -> bool:
+            def is_global_addr(ipaddr):
                 try:
-                    ipaddr = ipaddress.ip_address(address)
+                    ipaddr = ipaddress.ip_address(ipaddr)
                 except ValueError:
                     return False
                 return ipaddr.is_global
@@ -122,6 +115,7 @@ def validate_email_deliverability(domain: str, domain_i18n: str, timeout: Option
                 for rec in response:
                     value = b"".join(rec.strings)
                     if value.startswith(b"v=spf1 "):
+                        deliverability_info["spf"] = value.decode("ascii", errors='replace')
                         if value == b"v=spf1 -all":
                             raise EmailUndeliverableError(f"The domain name {domain_i18n} does not send email.")
             except dns.resolver.NoAnswer:

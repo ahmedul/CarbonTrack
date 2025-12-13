@@ -3,8 +3,7 @@ from __future__ import annotations
 import importlib.metadata as importlib_metadata
 import os
 import warnings
-from collections.abc import Iterable
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Final, Iterable
 
 if TYPE_CHECKING:
     from . import PydanticPluginProtocol
@@ -49,8 +48,7 @@ def get_plugins() -> Iterable[PydanticPluginProtocol]:
                     except (ImportError, AttributeError) as e:
                         warnings.warn(
                             f'{e.__class__.__name__} while loading the `{entry_point.name}` Pydantic plugin, '
-                            f'this plugin will not be installed.\n\n{e!r}',
-                            stacklevel=2,
+                            f'this plugin will not be installed.\n\n{e!r}'
                         )
         finally:
             _loading_plugins = False

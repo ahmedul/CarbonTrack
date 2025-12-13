@@ -16,7 +16,7 @@ const app = createApp({
             currentView: 'home',
             isAuthenticated: false,
             authToken: null,
-            apiBase: 'https://ahzh0n0k6c.execute-api.us-east-1.amazonaws.com/prod/api/v1',
+            apiBase: 'https://nlkyarlri3.execute-api.eu-central-1.amazonaws.com/prod/api/v1',
             
             // User data
             userProfile: {
@@ -272,18 +272,50 @@ const app = createApp({
     },
     
     mounted() {
-        console.log('Vue app mounted successfully!');
-        // Check for stored authentication
+        console.log('=== Vue app mounting ===');
+        console.log('API Base URL:', this.apiBase);
+        
+        // Check for stored authentication (sync - don't use await in mounted)
         const token = localStorage.getItem('carbontrack_token');
+        console.log('Token in localStorage:', token ? 'Yes (length: ' + token.length + ')' : 'No');
+        
         if (token) {
+            console.log('Found stored token, attempting to restore session...');
             this.authToken = token;
             this.isAuthenticated = true;
-            this.loadUserData();
-            this.loadEmissions();
-            this.loadRecommendations();
-            this.loadRecommendationStats();
+            
+            // Load user data first, then load other data
+            this.loadUserData().then(() => {
+                console.log('User data loaded, profile:', this.userProfile);
+                
+                // Only load other data if still authenticated (token wasn't expired)
+                if (this.isAuthenticated && this.userProfile.user_id) {
+                    console.log('Loading emissions and other data...');
+                    this.loadEmissions();
+                    this.loadRecommendations();
+                    this.loadRecommendationStats();
+                } else {
+                    console.log('Not authenticated or no user_id after loadUserData');
+                }
+            }).catch(error => {
+                console.error('Error loading user data:', error);
+                // Continue anyway - error is handled in loadUserData
+            });
+        } else {
+            console.log('No token found, showing welcome screen');
+            this.currentView = 'welcome';
         }
-        this.initializeChart();
+        
+        // Always try to initialize chart (it has its own error handling)
+        setTimeout(() => {
+            try {
+                this.initializeChart();
+            } catch (chartError) {
+                console.error('Chart initialization error (non-fatal):', chartError);
+            }
+        }, 500);
+        
+        console.log('=== Vue app mounted successfully ===');
     },
     
     methods: {
@@ -330,8 +362,47 @@ const app = createApp({
                     }
                 });
                 
-                if (response.data.success) {
+                // Check if we got an access_token (new API format)
+                if (response.data.access_token) {
                     console.log('✅ Login successful via API');
+                    this.authToken = response.data.access_token;
+                    localStorage.setItem('carbontrack_token', response.data.access_token);
+                    
+                    // Fetch user profile
+                    const profileResponse = await axios.get(`${this.apiBase}/auth/me`, {
+                        headers: {
+                            'Authorization': `Bearer ${this.authToken}`
+                        }
+                    });
+                    
+                    if (profileResponse.data.user) {
+                        this.userProfile = {
+                            user_id: profileResponse.data.user.user_id,
+                            email: profileResponse.data.user.email || this.loginForm.email,
+                            full_name: profileResponse.data.user.full_name || 'User',
+                            carbon_budget: profileResponse.data.user.carbon_budget || 2000,
+                            role: profileResponse.data.user.role || 'user'
+                        };
+                        
+                        this.isAuthenticated = true;
+                        this.currentView = 'dashboard';
+                        
+                        // Load data from API
+                        this.loadEmissions();
+                        this.loadRecommendations();
+                        this.loadRecommendationStats();
+                        this.loadGamificationData();
+                        
+                        this.showNotification('Login successful! Welcome to CarbonTrack.', 'success');
+                        this.initializeChart();
+                        this.loading = false;
+                        return;
+                    }
+                }
+                
+                // Check old API format for backwards compatibility
+                if (response.data.success) {
+                    console.log('✅ Login successful via API (old format)');
                     const userData = response.data.data;
                     
                     this.isAuthenticated = true;
@@ -354,6 +425,7 @@ const app = createApp({
                     
                     this.showNotification('Login successful! Welcome to CarbonTrack.', 'success');
                     this.initializeChart();
+                    this.loading = false;
                     return;
                 }
             } catch (error) {
@@ -479,45 +551,140 @@ const app = createApp({
         },
 
         // Data loading methods
-        loadUserData() {
+        async loadUserData() {
             console.log('Loading user profile data');
-            // Simulate API call with demo data
-            this.userProfile = {
-                user_id: 'demo-user',
-                email: 'demo@carbontrack.dev',
-                full_name: 'Demo User',
-                carbon_budget: 500,
-                role: 'admin'
-            };
+            
+            if (!this.authToken) {
+                console.log('No auth token, skipping profile load');
+                return;
+            }
+            
+            try {
+                console.log('Fetching user profile from API...');
+                const response = await axios.get(`${this.apiBase}/auth/me`, {
+                    headers: {
+                        'Authorization': `Bearer ${this.authToken}`
+                    }
+                });
+                
+                console.log('API /me response:', response.data);
+                
+                if (response.data.user) {
+                    console.log('✅ User profile loaded:', response.data.user);
+                    this.userProfile = {
+                        user_id: response.data.user.user_id,
+                        email: response.data.user.email,
+                        full_name: response.data.user.full_name || 'User',
+                        carbon_budget: response.data.user.carbon_budget || 2000,
+                        role: response.data.user.role || 'user'
+                    };
+                } else {
+                    console.error('Invalid response format from /me endpoint');
+                    throw new Error('Invalid response format');
+                }
+            } catch (error) {
+                console.error('Failed to load user profile:', error);
+                console.error('Error details:', error.response?.data || error.message);
+                
+                // Token is invalid or expired - force logout
+                console.log('🔴 Token invalid/expired, forcing logout');
+                localStorage.removeItem('carbontrack_token');
+                this.authToken = null;
+                this.isAuthenticated = false;
+                this.currentView = 'welcome';
+                this.showNotification('Session expired. Please login again.', 'error');
+            }
         },
         
         async loadEmissions() {
-            console.log('Loading emissions data from API');
+            console.log('=== LOAD EMISSIONS START ===');
+            console.log('Auth token:', this.authToken ? 'Present (length: ' + this.authToken.length + ')' : 'MISSING');
+            console.log('User ID:', this.userProfile?.user_id);
+            console.log('API Base:', this.apiBase);
+            
             this.loading = true;
             
             try {
                 // Make API call to load user's emissions
-                const response = await axios.get(`${this.apiBase}/emissions/`, {
+                const url = `${this.apiBase}/carbon-emissions`;
+                console.log('Fetching emissions from:', url);
+                
+                const response = await axios.get(url, {
                     headers: {
                         'Authorization': `Bearer ${this.authToken}`,
                         'Content-Type': 'application/json'
                     }
                 });
                 
-                if (response.data.success) {
-                    console.log('✅ Successfully loaded emissions from API');
-                    this.emissions = response.data.data.emissions || [];
-                    this.totalEmissions = response.data.data.total_emissions || 0;
-                    this.monthlyEmissions = response.data.data.monthly_emissions || 0;
-                    this.goalProgress = response.data.data.goal_progress || 0;
+                console.log('✅ API Response received');
+                console.log('Response status:', response.status);
+                console.log('Response data type:', Array.isArray(response.data) ? 'Array' : typeof response.data);
+                console.log('Response data length:', Array.isArray(response.data) ? response.data.length : 'N/A');
+                console.log('Raw API response:', response.data);
+                
+                // Check if we got emissions array (backend returns array directly)
+                if (response.data && Array.isArray(response.data)) {
+                    console.log('✅ Successfully loaded', response.data.length, 'emissions from API');
+                    
+                    // Map backend format to frontend format
+                    // Backend now returns entries sorted by created_at (newest first)
+                    this.emissions = response.data.map(emission => ({
+                        id: emission.id,
+                        category: emission.entry_type,
+                        activity: emission.category || emission.entry_type,
+                        amount: emission.co2_equivalent || emission.amount,
+                        unit: emission.unit,
+                        date: emission.date.split('T')[0],
+                        created_at: emission.created_at || emission.id,  // Use created_at timestamp for sorting
+                        description: emission.description || '',
+                        co2_equivalent: emission.co2_equivalent
+                    }));
+                    
+                    console.log('Mapped emissions:', this.emissions);
+                    
+                    // Calculate totals from actual data
+                    this.totalEmissions = this.emissions.reduce((sum, e) => sum + parseFloat(e.amount || 0), 0);
+                    
+                    // Calculate monthly emissions (current month)
+                    const currentMonth = new Date().toISOString().slice(0, 7);
+                    this.monthlyEmissions = this.emissions
+                        .filter(e => e.date.startsWith(currentMonth))
+                        .reduce((sum, e) => sum + parseFloat(e.amount || 0), 0);
+                    
+                    this.goalProgress = Math.min(Math.round((this.monthlyEmissions / 300) * 100), 100);
+                    
+                    console.log('✅ Totals calculated:');
+                    console.log('  - Total emissions:', this.totalEmissions, 'kg');
+                    console.log('  - Monthly emissions:', this.monthlyEmissions, 'kg');
+                    console.log('  - Goal progress:', this.goalProgress, '%');
+                    console.log('=== LOAD EMISSIONS SUCCESS ===');
+                    
                 } else {
-                    console.log('❌ API call failed, using fallback demo data');
-                    this.loadDemoEmissions();
+                    // Empty array or unexpected format - don't load demo data, just start fresh
+                    console.log('⚠️ No emissions found or unexpected format');
+                    this.emissions = [];
+                    this.totalEmissions = 0;
+                    this.monthlyEmissions = 0;
+                    this.goalProgress = 0;
+                    console.log('=== LOAD EMISSIONS COMPLETE (EMPTY) ===');
                 }
             } catch (error) {
-                console.error('Error loading emissions from API:', error);
-                console.log('📡 API not available, using demo data as fallback');
-                this.loadDemoEmissions();
+                console.error('❌ Error loading emissions from API:', error);
+                console.error('Error response:', error.response?.data);
+                console.error('Error status:', error.response?.status);
+                
+                // On error, start fresh - NEVER load demo data for authenticated users
+                if (this.authToken) {
+                    console.log('⚠️ API error for authenticated user - starting with empty data (NOT DEMO)');
+                    this.emissions = [];
+                    this.totalEmissions = 0;
+                    this.monthlyEmissions = 0;
+                    this.goalProgress = 0;
+                } else {
+                    console.log('📡 No auth token - using demo data for demo users');
+                    this.loadDemoEmissions();
+                }
+                console.log('=== LOAD EMISSIONS FAILED ===');
             } finally {
                 this.loading = false;
             }
@@ -618,38 +785,83 @@ const app = createApp({
         },
         
         // Emission management
-        addEmission() {
+        async addEmission() {
             if (!this.emissionForm.category || !this.emissionForm.amount) {
                 this.showNotification('Please fill in all required fields', 'error');
                 return;
             }
             
-            const newEmission = {
-                id: Date.now().toString(),
-                category: this.emissionForm.category,
-                activity: this.emissionForm.activity || this.emissionForm.category,
-                amount: parseFloat(this.emissionForm.amount),
-                unit: 'kg',
-                date: this.emissionForm.date,
-                description: this.emissionForm.description
-            };
+            // Check if user is authenticated
+            if (!this.authToken) {
+                this.showNotification('Please log in first', 'error');
+                this.currentView = 'login';
+                return;
+            }
             
-            this.emissions.unshift(newEmission);
-            this.totalEmissions += newEmission.amount;
-            this.monthlyEmissions += newEmission.amount;
-            
-            // Reset form
-            this.emissionForm = {
-                category: '',
-                activity: '',
-                amount: '',
-                unit: '',
-                date: new Date().toISOString().split('T')[0],
-                description: ''
-            };
-            
-            this.showNotification('Carbon emission added successfully!', 'success');
-            this.updateChart();
+            try {
+                // Prepare emission data for API
+                const emissionData = {
+                    entry_type: this.emissionForm.category,
+                    category: this.emissionForm.activity || this.emissionForm.category,
+                    amount: parseFloat(this.emissionForm.amount),
+                    unit: this.emissionForm.unit || 'kg',
+                    date: this.emissionForm.date + 'T12:00:00',  // Add time to date
+                    description: this.emissionForm.description || ''
+                };
+                
+                console.log('Sending emission data to API:', emissionData);
+                console.log('Auth token present:', !!this.authToken);
+                console.log('Auth token length:', this.authToken?.length);
+                
+                // Save to API
+                const response = await axios.post(
+                    `${this.apiBase}/carbon-emissions`,
+                    emissionData,
+                    {
+                        headers: {
+                            'Authorization': `Bearer ${this.authToken}`,
+                            'Content-Type': 'application/json'
+                        }
+                    }
+                );
+                
+                console.log('API response:', response.data);
+                
+                // Add to local list with API response data
+                const newEmission = {
+                    id: response.data.id,
+                    category: response.data.entry_type,
+                    activity: response.data.category || response.data.entry_type,
+                    amount: response.data.co2_equivalent || response.data.amount,
+                    unit: response.data.unit,
+                    date: response.data.date.split('T')[0],
+                    description: response.data.description || '',
+                    co2_equivalent: response.data.co2_equivalent
+                };
+                
+                this.emissions.unshift(newEmission);
+                this.totalEmissions += newEmission.amount;
+                this.monthlyEmissions += newEmission.amount;
+                
+                // Reset form
+                this.emissionForm = {
+                    category: '',
+                    activity: '',
+                    amount: '',
+                    unit: '',
+                    date: new Date().toISOString().split('T')[0],
+                    description: ''
+                };
+                
+                this.showNotification(`Carbon emission added successfully! CO2: ${newEmission.amount.toFixed(2)} kg`, 'success');
+                this.updateChart();
+                
+            } catch (error) {
+                console.error('Error saving emission:', error);
+                console.error('Error details:', error.response?.data || error.message);
+                const errorMsg = error.response?.data?.detail || 'Failed to save emission. Please try again.';
+                this.showNotification(errorMsg, 'error');
+            }
         },
         
         deleteEmission(emissionId) {
@@ -725,10 +937,11 @@ const app = createApp({
                 return;
             }
             
-            setTimeout(function() {
+            const self = this;
+            setTimeout(() => {
                 const ctx = document.getElementById('emissionsChart');
-                if (ctx && !this.chart) {
-                    this.chart = new Chart(ctx, {
+                if (ctx && !self.chart) {
+                    self.chart = new Chart(ctx, {
                         type: 'line',
                         data: {
                             labels: ['Sep 18', 'Sep 19', 'Sep 20', 'Sep 21', 'Sep 22', 'Sep 23', 'Sep 24', 'Sep 25'],
@@ -819,34 +1032,39 @@ const app = createApp({
                         }
                     });
                 }
-            }.bind(this), 100);
+            }, 100);
         },
         
         updateChart() {
-            if (this.chart && this.emissions.length > 0) {
-                // Get last 7 days of emissions data
-                var chartData = [];
-                var chartLabels = [];
-                
-                // Sort emissions by date and get recent ones
-                var sortedEmissions = this.emissions.slice().sort(function(a, b) {
-                    return new Date(a.date) - new Date(b.date);
-                });
-                
-                var recentEmissions = sortedEmissions.slice(-8); // Last 8 entries
-                
-                for (var i = 0; i < recentEmissions.length; i++) {
-                    var emission = recentEmissions[i];
-                    var date = new Date(emission.date);
-                    var label = (date.getMonth() + 1) + '/' + date.getDate();
-                    chartLabels.push(label);
-                    chartData.push(emission.amount);
+            try {
+                if (this.chart && this.emissions.length > 0) {
+                    // Get last 7 days of emissions data
+                    var chartData = [];
+                    var chartLabels = [];
+                    
+                    // Sort emissions by date and get recent ones
+                    var sortedEmissions = this.emissions.slice().sort(function(a, b) {
+                        return new Date(a.date) - new Date(b.date);
+                    });
+                    
+                    var recentEmissions = sortedEmissions.slice(-8); // Last 8 entries
+                    
+                    for (var i = 0; i < recentEmissions.length; i++) {
+                        var emission = recentEmissions[i];
+                        var date = new Date(emission.date);
+                        var label = (date.getMonth() + 1) + '/' + date.getDate();
+                        chartLabels.push(label);
+                        chartData.push(emission.amount);
+                    }
+                    
+                    // Update chart data
+                    this.chart.data.labels = chartLabels;
+                    this.chart.data.datasets[0].data = chartData;
+                    this.chart.update('active');
                 }
-                
-                // Update chart data
-                this.chart.data.labels = chartLabels;
-                this.chart.data.datasets[0].data = chartData;
-                this.chart.update('active');
+            } catch (error) {
+                console.log('Chart update skipped:', error.message);
+                // Chart not initialized yet, that's okay
             }
         },
         
@@ -937,8 +1155,9 @@ const app = createApp({
             
             this.loading = true;
             try {
-                // Use mock data for demo mode (no backend)
-                if (this.userProfile.user_id === 'demo-user' || this.userProfile.user_id === 'admin-user') {
+                // Use mock data for all users until API endpoints are implemented
+                // TODO: Replace with real API calls when /recommendations endpoint is ready
+                if (true) {
                     // Mock recommendations data
                     const mockRecommendations = [
                         {
@@ -1119,8 +1338,9 @@ const app = createApp({
             
             this.loading = true;
             try {
-                // Use mock data for demo mode (no backend)
-                if (this.userProfile.user_id === 'demo-user' || this.userProfile.user_id === 'admin-user') {
+                // Use mock data for all users until API endpoints are implemented
+                // TODO: Replace with real API calls when /gamification endpoint is ready
+                if (true) {
                     // Mock gamification profile data
                     this.gamificationProfile = {
                         user_id: this.userProfile.user_id,
@@ -1469,6 +1689,15 @@ const app = createApp({
         }
     }
 });
+
+// Global error handler to prevent errors from breaking the entire app
+app.config.errorHandler = (err, instance, info) => {
+    console.error('Vue Error Caught:', err);
+    console.error('Component:', instance);
+    console.error('Error Info:', info);
+    // Log but don't break the app - prevent white screen on errors
+    return false;
+};
 
 console.log('Vue app created, attempting to mount...');
 try {

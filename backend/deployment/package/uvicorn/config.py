@@ -9,10 +9,8 @@ import os
 import socket
 import ssl
 import sys
-from collections.abc import Awaitable
-from configparser import RawConfigParser
 from pathlib import Path
-from typing import IO, Any, Callable, Literal
+from typing import Any, Awaitable, Callable, Literal
 
 import click
 
@@ -25,9 +23,9 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 from uvicorn.middleware.wsgi import WSGIMiddleware
 
 HTTPProtocolType = Literal["auto", "h11", "httptools"]
-WSProtocolType = Literal["auto", "none", "websockets", "websockets-sansio", "wsproto"]
+WSProtocolType = Literal["auto", "none", "websockets", "wsproto"]
 LifespanType = Literal["auto", "on", "off"]
-LoopFactoryType = Literal["none", "auto", "asyncio", "uvloop"]
+LoopSetupType = Literal["none", "auto", "asyncio", "uvloop"]
 InterfaceType = Literal["auto", "asgi3", "asgi2", "wsgi"]
 
 LOG_LEVELS: dict[str, int] = {
@@ -38,28 +36,27 @@ LOG_LEVELS: dict[str, int] = {
     "debug": logging.DEBUG,
     "trace": TRACE_LOG_LEVEL,
 }
-HTTP_PROTOCOLS: dict[str, str] = {
+HTTP_PROTOCOLS: dict[HTTPProtocolType, str] = {
     "auto": "uvicorn.protocols.http.auto:AutoHTTPProtocol",
     "h11": "uvicorn.protocols.http.h11_impl:H11Protocol",
     "httptools": "uvicorn.protocols.http.httptools_impl:HttpToolsProtocol",
 }
-WS_PROTOCOLS: dict[str, str | None] = {
+WS_PROTOCOLS: dict[WSProtocolType, str | None] = {
     "auto": "uvicorn.protocols.websockets.auto:AutoWebSocketsProtocol",
     "none": None,
     "websockets": "uvicorn.protocols.websockets.websockets_impl:WebSocketProtocol",
-    "websockets-sansio": "uvicorn.protocols.websockets.websockets_sansio_impl:WebSocketsSansIOProtocol",
     "wsproto": "uvicorn.protocols.websockets.wsproto_impl:WSProtocol",
 }
-LIFESPAN: dict[str, str] = {
+LIFESPAN: dict[LifespanType, str] = {
     "auto": "uvicorn.lifespan.on:LifespanOn",
     "on": "uvicorn.lifespan.on:LifespanOn",
     "off": "uvicorn.lifespan.off:LifespanOff",
 }
-LOOP_FACTORIES: dict[str, str | None] = {
+LOOP_SETUPS: dict[LoopSetupType, str | None] = {
     "none": None,
-    "auto": "uvicorn.loops.auto:auto_loop_factory",
-    "asyncio": "uvicorn.loops.asyncio:asyncio_loop_factory",
-    "uvloop": "uvicorn.loops.uvloop:uvloop_loop_factory",
+    "auto": "uvicorn.loops.auto:auto_loop_setup",
+    "asyncio": "uvicorn.loops.asyncio:asyncio_setup",
+    "uvloop": "uvicorn.loops.uvloop:uvloop_setup",
 }
 INTERFACES: list[InterfaceType] = ["auto", "asgi3", "asgi2", "wsgi"]
 
@@ -126,7 +123,7 @@ def is_dir(path: Path) -> bool:
         if not path.is_absolute():
             path = path.resolve()
         return path.is_dir()
-    except OSError:  # pragma: full coverage
+    except OSError:
         return False
 
 
@@ -139,7 +136,7 @@ def resolve_reload_patterns(patterns_list: list[str], directories_list: list[str
         # Special case for the .* pattern, otherwise this would only match
         # hidden directories which is probably undesired
         if pattern == ".*":
-            continue  # pragma: py-not-linux
+            continue
         patterns.append(pattern)
         if is_dir(Path(pattern)):
             directories.append(Path(pattern))
@@ -155,9 +152,9 @@ def resolve_reload_patterns(patterns_list: list[str], directories_list: list[str
 
     children = []
     for j in range(len(directories)):
-        for k in range(j + 1, len(directories)):  # pragma: full coverage
+        for k in range(j + 1, len(directories)):
             if directories[j] in directories[k].parents:
-                children.append(directories[k])
+                children.append(directories[k])  # pragma: py-darwin
             elif directories[k] in directories[j].parents:
                 children.append(directories[j])
 
@@ -182,9 +179,9 @@ class Config:
         port: int = 8000,
         uds: str | None = None,
         fd: int | None = None,
-        loop: LoopFactoryType | str = "auto",
-        http: type[asyncio.Protocol] | HTTPProtocolType | str = "auto",
-        ws: type[asyncio.Protocol] | WSProtocolType | str = "auto",
+        loop: LoopSetupType = "auto",
+        http: type[asyncio.Protocol] | HTTPProtocolType = "auto",
+        ws: type[asyncio.Protocol] | WSProtocolType = "auto",
         ws_max_size: int = 16 * 1024 * 1024,
         ws_max_queue: int = 32,
         ws_ping_interval: float | None = 20.0,
@@ -192,7 +189,7 @@ class Config:
         ws_per_message_deflate: bool = True,
         lifespan: LifespanType = "auto",
         env_file: str | os.PathLike[str] | None = None,
-        log_config: dict[str, Any] | str | RawConfigParser | IO[Any] | None = LOGGING_CONFIG,
+        log_config: dict[str, Any] | str | None = LOGGING_CONFIG,
         log_level: str | int | None = None,
         access_log: bool = True,
         use_colors: bool | None = None,
@@ -214,14 +211,13 @@ class Config:
         timeout_keep_alive: int = 5,
         timeout_notify: int = 30,
         timeout_graceful_shutdown: int | None = None,
-        timeout_worker_healthcheck: int = 5,
         callback_notify: Callable[..., Awaitable[None]] | None = None,
-        ssl_keyfile: str | os.PathLike[str] | None = None,
+        ssl_keyfile: str | None = None,
         ssl_certfile: str | os.PathLike[str] | None = None,
         ssl_keyfile_password: str | None = None,
         ssl_version: int = SSL_PROTOCOL_VERSION,
         ssl_cert_reqs: int = ssl.CERT_NONE,
-        ssl_ca_certs: str | os.PathLike[str] | None = None,
+        ssl_ca_certs: str | None = None,
         ssl_ciphers: str = "TLSv1",
         headers: list[tuple[str, str]] | None = None,
         factory: bool = False,
@@ -259,7 +255,6 @@ class Config:
         self.timeout_keep_alive = timeout_keep_alive
         self.timeout_notify = timeout_notify
         self.timeout_graceful_shutdown = timeout_graceful_shutdown
-        self.timeout_worker_healthcheck = timeout_worker_healthcheck
         self.callback_notify = callback_notify
         self.ssl_keyfile = ssl_keyfile
         self.ssl_certfile = ssl_certfile
@@ -283,7 +278,7 @@ class Config:
 
         if (reload_dirs or reload_includes or reload_excludes) and not self.should_reload:
             logger.warning(
-                "Current configuration will not reload as not all conditions are met, please refer to documentation."
+                "Current configuration will not reload as not all conditions are met, " "please refer to documentation."
             )
 
         if self.should_reload:
@@ -302,12 +297,12 @@ class Config:
                     if directory == reload_directory or directory in reload_directory.parents:
                         try:
                             self.reload_dirs.remove(reload_directory)
-                        except ValueError:  # pragma: full coverage
+                        except ValueError:
                             pass
 
             for pattern in self.reload_excludes:
                 if pattern in self.reload_includes:
-                    self.reload_includes.remove(pattern)  # pragma: full coverage
+                    self.reload_includes.remove(pattern)
 
             if not self.reload_dirs:
                 if reload_dirs:
@@ -316,7 +311,7 @@ class Config:
                         + "directories, watching current working directory.",
                         reload_dirs,
                     )
-                self.reload_dirs = [Path.cwd()]
+                self.reload_dirs = [Path(os.getcwd())]
 
             logger.info(
                 "Will watch for changes in these directories: %s",
@@ -336,7 +331,7 @@ class Config:
         if forwarded_allow_ips is None:
             self.forwarded_allow_ips = os.environ.get("FORWARDED_ALLOW_IPS", "127.0.0.1")
         else:
-            self.forwarded_allow_ips = forwarded_allow_ips  # pragma: full coverage
+            self.forwarded_allow_ips = forwarded_allow_ips
 
         if self.reload and self.workers > 1:
             logger.warning('"workers" flag is ignored when reloading is enabled.')
@@ -367,11 +362,11 @@ class Config:
                     self.log_config["formatters"]["default"]["use_colors"] = self.use_colors
                     self.log_config["formatters"]["access"]["use_colors"] = self.use_colors
                 logging.config.dictConfig(self.log_config)
-            elif isinstance(self.log_config, str) and self.log_config.endswith(".json"):
+            elif self.log_config.endswith(".json"):
                 with open(self.log_config) as file:
                     loaded_config = json.load(file)
                     logging.config.dictConfig(loaded_config)
-            elif isinstance(self.log_config, str) and self.log_config.endswith((".yaml", ".yml")):
+            elif self.log_config.endswith((".yaml", ".yml")):
                 # Install the PyYAML package or the uvicorn[standard] optional
                 # dependencies to enable this functionality.
                 import yaml
@@ -421,13 +416,13 @@ class Config:
         )
 
         if isinstance(self.http, str):
-            http_protocol_class = import_from_string(HTTP_PROTOCOLS.get(self.http, self.http))
+            http_protocol_class = import_from_string(HTTP_PROTOCOLS[self.http])
             self.http_protocol_class: type[asyncio.Protocol] = http_protocol_class
         else:
             self.http_protocol_class = self.http
 
         if isinstance(self.ws, str):
-            ws_protocol_class = import_from_string(WS_PROTOCOLS.get(self.ws, self.ws))
+            ws_protocol_class = import_from_string(WS_PROTOCOLS[self.ws])
             self.ws_protocol_class: type[asyncio.Protocol] | None = ws_protocol_class
         else:
             self.ws_protocol_class = self.ws
@@ -449,17 +444,17 @@ class Config:
         else:
             if not self.factory:
                 logger.warning(
-                    "ASGI app factory detected. Using it, but please consider setting the --factory flag explicitly."
+                    "ASGI app factory detected. Using it, " "but please consider setting the --factory flag explicitly."
                 )
 
         if self.interface == "auto":
             if inspect.isclass(self.loaded_app):
                 use_asgi_3 = hasattr(self.loaded_app, "__await__")
             elif inspect.isfunction(self.loaded_app):
-                use_asgi_3 = inspect.iscoroutinefunction(self.loaded_app)
+                use_asgi_3 = asyncio.iscoroutinefunction(self.loaded_app)
             else:
                 call = getattr(self.loaded_app, "__call__", None)
-                use_asgi_3 = inspect.iscoroutinefunction(call)
+                use_asgi_3 = asyncio.iscoroutinefunction(call)
             self.interface = "asgi3" if use_asgi_3 else "asgi2"
 
         if self.interface == "wsgi":
@@ -476,24 +471,9 @@ class Config:
         self.loaded = True
 
     def setup_event_loop(self) -> None:
-        raise AttributeError(
-            "The `setup_event_loop` method was replaced by `get_loop_factory` in uvicorn 0.36.0.\n"
-            "None of those methods are supposed to be used directly. If you are doing it, please let me know here: "
-            "https://github.com/Kludex/uvicorn/discussions/2706. Thank you, and sorry for the inconvenience."
-        )
-
-    def get_loop_factory(self) -> Callable[[], asyncio.AbstractEventLoop] | None:
-        if self.loop in LOOP_FACTORIES:
-            loop_factory: Callable[..., Any] | None = import_from_string(LOOP_FACTORIES[self.loop])
-        else:
-            try:
-                return import_from_string(self.loop)
-            except ImportFromStringError as exc:
-                logger.error("Error loading custom loop setup function. %s" % exc)
-                sys.exit(1)
-        if loop_factory is None:
-            return None
-        return loop_factory(use_subprocess=self.use_subprocess)
+        loop_setup: Callable | None = import_from_string(LOOP_SETUPS[self.loop])
+        if loop_setup is not None:
+            loop_setup(use_subprocess=self.use_subprocess)
 
     def bind_socket(self) -> socket.socket:
         logger_args: list[str | int]
@@ -504,7 +484,7 @@ class Config:
                 sock.bind(path)
                 uds_perms = 0o666
                 os.chmod(self.uds, uds_perms)
-            except OSError as exc:  # pragma: full coverage
+            except OSError as exc:
                 logger.error(exc)
                 sys.exit(1)
 
@@ -522,7 +502,7 @@ class Config:
             family = socket.AF_INET
             addr_format = "%s://%s:%d"
 
-            if self.host and ":" in self.host:  # pragma: full coverage
+            if self.host and ":" in self.host:  # pragma: py-win32
                 # It's an IPv6 address.
                 family = socket.AF_INET6
                 addr_format = "%s://[%s]:%d"
@@ -531,7 +511,7 @@ class Config:
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             try:
                 sock.bind((self.host, self.port))
-            except OSError as exc:  # pragma: full coverage
+            except OSError as exc:
                 logger.error(exc)
                 sys.exit(1)
 

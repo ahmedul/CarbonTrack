@@ -10,24 +10,21 @@ import socket
 import sys
 import threading
 import time
-from collections.abc import Generator, Sequence
 from email.utils import formatdate
 from types import FrameType
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, Generator, Sequence, Union
 
 import click
 
-from uvicorn._compat import asyncio_run
 from uvicorn.config import Config
 
 if TYPE_CHECKING:
     from uvicorn.protocols.http.h11_impl import H11Protocol
     from uvicorn.protocols.http.httptools_impl import HttpToolsProtocol
     from uvicorn.protocols.websockets.websockets_impl import WebSocketProtocol
-    from uvicorn.protocols.websockets.websockets_sansio_impl import WebSocketsSansIOProtocol
     from uvicorn.protocols.websockets.wsproto_impl import WSProtocol
 
-    Protocols = Union[H11Protocol, HttpToolsProtocol, WSProtocol, WebSocketProtocol, WebSocketsSansIOProtocol]
+    Protocols = Union[H11Protocol, HttpToolsProtocol, WSProtocol, WebSocketProtocol]
 
 HANDLED_SIGNALS = (
     signal.SIGINT,  # Unix signal 2. Sent by Ctrl+C.
@@ -64,7 +61,8 @@ class Server:
         self._captured_signals: list[int] = []
 
     def run(self, sockets: list[socket.socket] | None = None) -> None:
-        return asyncio_run(self.serve(sockets=sockets), loop_factory=self.config.get_loop_factory())
+        self.config.setup_event_loop()
+        return asyncio.run(self.serve(sockets=sockets))
 
     async def serve(self, sockets: list[socket.socket] | None = None) -> None:
         with self.capture_signals():
@@ -114,13 +112,13 @@ class Server:
         loop = asyncio.get_running_loop()
 
         listeners: Sequence[socket.SocketType]
-        if sockets is not None:  # pragma: full coverage
+        if sockets is not None:
             # Explicitly passed a list of open sockets.
             # We use this when the server is run from a Gunicorn worker.
 
             def _share_socket(
                 sock: socket.SocketType,
-            ) -> socket.SocketType:  # pragma py-not-win32
+            ) -> socket.SocketType:  # pragma py-linux pragma: py-darwin
                 # Windows requires the socket be explicitly shared across
                 # multiple workers (processes).
                 from socket import fromshare  # type: ignore[attr-defined]
@@ -149,7 +147,7 @@ class Server:
             # Create a socket using UNIX domain socket.
             uds_perms = 0o666
             if os.path.exists(config.uds):
-                uds_perms = os.stat(config.uds).st_mode  # pragma: full coverage
+                uds_perms = os.stat(config.uds).st_mode
             server = await loop.create_unix_server(
                 create_protocol, path=config.uds, ssl=config.ssl, backlog=config.backlog
             )
@@ -182,7 +180,7 @@ class Server:
         else:
             # We're most likely running multiple workers, so a message has already been
             # logged by `config.bind_socket()`.
-            pass  # pragma: full coverage
+            pass
 
         self.started = True
 
@@ -245,19 +243,15 @@ class Server:
 
             # Callback to `callback_notify` once every `timeout_notify` seconds.
             if self.config.callback_notify is not None:
-                if current_time - self.last_notified > self.config.timeout_notify:  # pragma: full coverage
+                if current_time - self.last_notified > self.config.timeout_notify:
                     self.last_notified = current_time
                     await self.config.callback_notify()
 
         # Determine if we should exit.
         if self.should_exit:
             return True
-
-        max_requests = self.config.limit_max_requests
-        if max_requests is not None and self.server_state.total_requests >= max_requests:
-            logger.warning(f"Maximum request limit of {max_requests} exceeded. Terminating process.")
-            return True
-
+        if self.config.limit_max_requests is not None:
+            return self.server_state.total_requests >= self.config.limit_max_requests
         return False
 
     async def shutdown(self, sockets: list[socket.socket] | None = None) -> None:
@@ -267,7 +261,7 @@ class Server:
         for server in self.servers:
             server.close()
         for sock in sockets or []:
-            sock.close()  # pragma: full coverage
+            sock.close()
 
         # Request shutdown on all existing connections.
         for connection in list(self.server_state.connections):
@@ -286,7 +280,10 @@ class Server:
                 len(self.server_state.tasks),
             )
             for t in self.server_state.tasks:
-                t.cancel(msg="Task cancelled, timeout graceful shutdown exceeded")
+                if sys.version_info < (3, 9):  # pragma: py-gte-39
+                    t.cancel()
+                else:  # pragma: py-lt-39
+                    t.cancel(msg="Task cancelled, timeout graceful shutdown exceeded")
 
         # Send the lifespan shutdown event, and wait for application shutdown.
         if not self.force_exit:
@@ -333,6 +330,6 @@ class Server:
     def handle_exit(self, sig: int, frame: FrameType | None) -> None:
         self._captured_signals.append(sig)
         if self.should_exit and sig == signal.SIGINT:
-            self.force_exit = True  # pragma: full coverage
+            self.force_exit = True
         else:
             self.should_exit = True

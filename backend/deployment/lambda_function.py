@@ -1,4 +1,9 @@
+import json
 from mangum import Mangum
-from combined_api_server import app
+from app.main import app
 
+# Mangum adapter for AWS Lambda
 handler = Mangum(app)
+
+def lambda_handler(event, context):
+    return handler(event, context)

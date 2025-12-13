@@ -198,3 +198,9 @@ config-with-values.yaml
 *.backup
 *.old
 *.orig
+# Secrets and sensitive configuration
+backend/aws-cognito-config.txt
+DEPLOYMENT_SECRETS.md
+**/secrets.json
+**/*secret*.txt
+**/*credentials*.txt

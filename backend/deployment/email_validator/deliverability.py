@@ -1,16 +1,18 @@
 from typing import Optional, Any, Dict
 
+import ipaddress
+
 from .exceptions_types import EmailUndeliverableError
 
 import dns.resolver
 import dns.exception
 
 
-def caching_resolver(*, timeout: Optional[int] = None, cache=None):
+def caching_resolver(*, timeout: Optional[int] = None, cache=None, dns_resolver=None):
     if timeout is None:
         from . import DEFAULT_TIMEOUT
         timeout = DEFAULT_TIMEOUT
-    resolver = dns.resolver.Resolver()
+    resolver = dns_resolver or dns.resolver.Resolver()
     resolver.cache = cache or dns.resolver.LRUCache()  # type: ignore
     resolver.lifetime = timeout  # type: ignore # timeout, in seconds
     return resolver
@@ -57,10 +59,30 @@ def validate_email_deliverability(domain: str, domain_i18n: str, timeout: Option
             deliverability_info["mx_fallback_type"] = None
 
         except dns.resolver.NoAnswer:
-            # If there was no MX record, fall back to an A record. (RFC 5321 Section 5)
+            # If there was no MX record, fall back to an A or AAA record
+            # (RFC 5321 Section 5). Check A first since it's more common.
+
+            # If the A/AAAA response has no Globally Reachable IP address,
+            # treat the response as if it were NoAnswer, i.e., the following
+            # address types are not allowed fallbacks: Private-Use, Loopback,
+            # Link-Local, and some other obscure ranges. See
+            # https://www.iana.org/assignments/iana-ipv4-special-registry/iana-ipv4-special-registry.xhtml
+            # https://www.iana.org/assignments/iana-ipv6-special-registry/iana-ipv6-special-registry.xhtml
+            # (Issue #134.)
+            def is_global_addr(ipaddr):
+                try:
+                    ipaddr = ipaddress.ip_address(ipaddr)
+                except ValueError:
+                    return False
+                return ipaddr.is_global
+
             try:
                 response = dns_resolver.resolve(domain, "A")
-                deliverability_info["mx"] = [(0, str(r)) for r in response]
+
+                if not any(is_global_addr(r.address) for r in response):
+                    raise dns.resolver.NoAnswer  # fall back to AAAA
+
+                deliverability_info["mx"] = [(0, domain)]
                 deliverability_info["mx_fallback_type"] = "A"
 
             except dns.resolver.NoAnswer:
@@ -69,15 +91,19 @@ def validate_email_deliverability(domain: str, domain_i18n: str, timeout: Option
                 # (It's unclear if SMTP servers actually do this.)
                 try:
                     response = dns_resolver.resolve(domain, "AAAA")
-                    deliverability_info["mx"] = [(0, str(r)) for r in response]
+
+                    if not any(is_global_addr(r.address) for r in response):
+                        raise dns.resolver.NoAnswer
+
+                    deliverability_info["mx"] = [(0, domain)]
                     deliverability_info["mx_fallback_type"] = "AAAA"
 
-                except dns.resolver.NoAnswer:
+                except dns.resolver.NoAnswer as e:
                     # If there was no MX, A, or AAAA record, then mail to
                     # this domain is not deliverable, although the domain
                     # name has other records (otherwise NXDOMAIN would
                     # have been raised).
-                    raise EmailUndeliverableError(f"The domain name {domain_i18n} does not accept email.")
+                    raise EmailUndeliverableError(f"The domain name {domain_i18n} does not accept email.") from e
 
             # Check for a SPF (RFC 7208) reject-all record ("v=spf1 -all") which indicates
             # no emails are sent from this domain (similar to a Null MX record
@@ -96,10 +122,10 @@ def validate_email_deliverability(domain: str, domain_i18n: str, timeout: Option
                 # No TXT records means there is no SPF policy, so we cannot take any action.
                 pass
 
-    except dns.resolver.NXDOMAIN:
+    except dns.resolver.NXDOMAIN as e:
         # The domain name does not exist --- there are no records of any sort
         # for the domain name.
-        raise EmailUndeliverableError(f"The domain name {domain_i18n} does not exist.")
+        raise EmailUndeliverableError(f"The domain name {domain_i18n} does not exist.") from e
 
     except dns.resolver.NoNameservers:
         # All nameservers failed to answer the query. This might be a problem
@@ -122,6 +148,6 @@ def validate_email_deliverability(domain: str, domain_i18n: str, timeout: Option
         # Unhandled conditions should not propagate.
         raise EmailUndeliverableError(
             "There was an error while checking if the domain name in the email address is deliverable: " + str(e)
-        )
+        ) from e
 
     return deliverability_info

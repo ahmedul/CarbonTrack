@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import importlib.util
 import os
 import stat
@@ -5,7 +7,9 @@ import typing
 from email.utils import parsedate
 
 import anyio
+import anyio.to_thread
 
+from starlette._utils import get_route_path
 from starlette.datastructures import URL, Headers
 from starlette.exceptions import HTTPException
 from starlette.responses import FileResponse, RedirectResponse, Response
@@ -39,10 +43,8 @@ class StaticFiles:
     def __init__(
         self,
         *,
-        directory: typing.Optional[PathLike] = None,
-        packages: typing.Optional[
-            typing.List[typing.Union[str, typing.Tuple[str, str]]]
-        ] = None,
+        directory: PathLike | None = None,
+        packages: list[str | tuple[str, str]] | None = None,
         html: bool = False,
         check_dir: bool = True,
         follow_symlink: bool = False,
@@ -58,11 +60,9 @@ class StaticFiles:
 
     def get_directories(
         self,
-        directory: typing.Optional[PathLike] = None,
-        packages: typing.Optional[
-            typing.List[typing.Union[str, typing.Tuple[str, str]]]
-        ] = None,
-    ) -> typing.List[PathLike]:
+        directory: PathLike | None = None,
+        packages: list[str | tuple[str, str]] | None = None,
+    ) -> list[PathLike]:
         """
         Given `directory` and `packages` arguments, return a list of all the
         directories that should be used for serving static files from.
@@ -108,7 +108,8 @@ class StaticFiles:
         Given the ASGI scope, return the `path` string to serve up,
         with OS specific path separators, and any '..', '.' components removed.
         """
-        return os.path.normpath(os.path.join(*scope["path"].split("/")))
+        route_path = get_route_path(scope)
+        return os.path.normpath(os.path.join(*route_path.split("/")))  # noqa: E501
 
     async def get_response(self, path: str, scope: Scope) -> Response:
         """
@@ -151,17 +152,10 @@ class StaticFiles:
                 self.lookup_path, "404.html"
             )
             if stat_result and stat.S_ISREG(stat_result.st_mode):
-                return FileResponse(
-                    full_path,
-                    stat_result=stat_result,
-                    method=scope["method"],
-                    status_code=404,
-                )
+                return FileResponse(full_path, stat_result=stat_result, status_code=404)
         raise HTTPException(status_code=404)
 
-    def lookup_path(
-        self, path: str
-    ) -> typing.Tuple[str, typing.Optional[os.stat_result]]:
+    def lookup_path(self, path: str) -> tuple[str, os.stat_result | None]:
         for directory in self.all_directories:
             joined_path = os.path.join(directory, path)
             if self.follow_symlink:
@@ -186,11 +180,10 @@ class StaticFiles:
         scope: Scope,
         status_code: int = 200,
     ) -> Response:
-        method = scope["method"]
         request_headers = Headers(scope=scope)
 
         response = FileResponse(
-            full_path, status_code=status_code, stat_result=stat_result, method=method
+            full_path, status_code=status_code, stat_result=stat_result
         )
         if self.is_not_modified(response.headers, request_headers):
             return NotModifiedResponse(response.headers)
@@ -226,7 +219,7 @@ class StaticFiles:
         try:
             if_none_match = request_headers["if-none-match"]
             etag = response_headers["etag"]
-            if if_none_match == etag:
+            if etag in [tag.strip(" W/") for tag in if_none_match.split(",")]:
                 return True
         except KeyError:
             pass

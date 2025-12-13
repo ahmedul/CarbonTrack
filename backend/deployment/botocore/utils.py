@@ -109,8 +109,6 @@ S3_ACCELERATE_WHITELIST = ['dualstack']
 # id, we have to preserve compatibility. This maps the instances where either
 # is different than the transformed service id.
 EVENT_ALIASES = {
-    "a4b": "alexa-for-business",
-    "alexaforbusiness": "alexa-for-business",
     "api.mediatailor": "mediatailor",
     "api.pricing": "pricing",
     "api.sagemaker": "sagemaker",
@@ -1668,22 +1666,15 @@ class S3ExpressIdentityResolver:
     def register(self, event_emitter=None):
         logger.debug('Registering S3Express Identity Resolver')
         emitter = event_emitter or self._client.meta.events
-        emitter.register(
-            'before-parameter-build.s3', self.inject_signing_cache_key
-        )
         emitter.register('before-call.s3', self.apply_signing_cache_key)
         emitter.register('before-sign.s3', self.resolve_s3express_identity)
-
-    def inject_signing_cache_key(self, params, context, **kwargs):
-        if 'Bucket' in params:
-            context['S3Express'] = {'bucket_name': params['Bucket']}
 
     def apply_signing_cache_key(self, params, context, **kwargs):
         endpoint_properties = context.get('endpoint_properties', {})
         backend = endpoint_properties.get('backend', None)
 
         # Add cache key if Bucket supplied for s3express request
-        bucket_name = context.get('S3Express', {}).get('bucket_name')
+        bucket_name = context.get('input_params', {}).get('Bucket')
         if backend == 'S3Express' and bucket_name is not None:
             context.setdefault('signing', {})
             context['signing']['cache_key'] = bucket_name
@@ -3577,7 +3568,6 @@ SERVICE_NAME_ALIASES = {'runtime.sagemaker': 'sagemaker-runtime'}
 # values are the transformed service IDs (lower case and hyphenated).
 CLIENT_NAME_TO_HYPHENIZED_SERVICE_ID_OVERRIDES = {
     # Actual service name we use -> Allowed computed service name.
-    'alexaforbusiness': 'alexa-for-business',
     'apigateway': 'api-gateway',
     'application-autoscaling': 'application-auto-scaling',
     'appmesh': 'app-mesh',

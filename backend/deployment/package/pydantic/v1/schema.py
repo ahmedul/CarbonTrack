@@ -738,7 +738,7 @@ def field_singleton_sub_fields_schema(
                     discriminator_models_refs[discriminator_value] = discriminator_model_ref['$ref']
 
             s['discriminator'] = {
-                'propertyName': field.discriminator_alias if by_alias else field.discriminator_key,
+                'propertyName': field.discriminator_alias,
                 'mapping': discriminator_models_refs,
             }
 
@@ -1090,7 +1090,7 @@ def get_annotation_with_constraints(annotation: Any, field_info: FieldInfo) -> T
             if issubclass(type_, (SecretStr, SecretBytes)):
                 attrs = ('max_length', 'min_length')
 
-                def constraint_func(**kw: Any) -> Type[Any]:  # noqa: F811
+                def constraint_func(**kw: Any) -> Type[Any]:
                     return type(type_.__name__, (type_,), kw)
 
             elif issubclass(type_, str) and not issubclass(type_, (EmailStr, AnyUrl)):

@@ -1,30 +1,24 @@
 """Logic related to validators applied to models etc. via the `@field_validator` and `@model_validator` decorators."""
-
 from __future__ import annotations as _annotations
 
-import types
 from collections import deque
-from collections.abc import Iterable
 from dataclasses import dataclass, field
 from functools import cached_property, partial, partialmethod
 from inspect import Parameter, Signature, isdatadescriptor, ismethoddescriptor, signature
 from itertools import islice
-from typing import TYPE_CHECKING, Any, Callable, ClassVar, Generic, Literal, TypeVar, Union
+from typing import TYPE_CHECKING, Any, Callable, ClassVar, Generic, Iterable, TypeVar, Union
 
-from pydantic_core import PydanticUndefined, PydanticUndefinedType, core_schema
-from typing_extensions import TypeAlias, is_typeddict
+from pydantic_core import PydanticUndefined, core_schema
+from typing_extensions import Literal, TypeAlias, is_typeddict
 
 from ..errors import PydanticUserError
 from ._core_utils import get_type_ref
 from ._internal_dataclass import slots_true
-from ._namespace_utils import GlobalsNamespace, MappingNamespace
 from ._typing_extra import get_function_type_hints
-from ._utils import can_be_positional
 
 if TYPE_CHECKING:
     from ..fields import ComputedFieldInfo
     from ..functional_validators import FieldValidatorModes
-    from ._config import ConfigWrapper
 
 
 @dataclass(**slots_true)
@@ -61,9 +55,6 @@ class FieldValidatorDecoratorInfo:
         fields: A tuple of field names the validator should be called on.
         mode: The proposed validator mode.
         check_fields: Whether to check that the fields actually exist on the model.
-        json_schema_input_type: The input type of the function. This is only used to generate
-            the appropriate JSON Schema (in validation mode) and can only specified
-            when `mode` is either `'before'`, `'plain'` or `'wrap'`.
     """
 
     decorator_repr: ClassVar[str] = '@field_validator'
@@ -71,7 +62,6 @@ class FieldValidatorDecoratorInfo:
     fields: tuple[str, ...]
     mode: FieldValidatorModes
     check_fields: bool | None
-    json_schema_input_type: Any
 
 
 @dataclass(**slots_true)
@@ -136,7 +126,7 @@ class ModelValidatorDecoratorInfo:
     while building the pydantic-core schema.
 
     Attributes:
-        decorator_repr: A class variable representing the decorator string, '@model_validator'.
+        decorator_repr: A class variable representing the decorator string, '@model_serializer'.
         mode: The proposed serializer mode.
     """
 
@@ -187,17 +177,11 @@ class PydanticDescriptorProxy(Generic[ReturnType]):
 
     def _call_wrapped_attr(self, func: Callable[[Any], None], *, name: str) -> PydanticDescriptorProxy[ReturnType]:
         self.wrapped = getattr(self.wrapped, name)(func)
-        if isinstance(self.wrapped, property):
-            # update ComputedFieldInfo.wrapped_property
-            from ..fields import ComputedFieldInfo
-
-            if isinstance(self.decorator_info, ComputedFieldInfo):
-                self.decorator_info.wrapped_property = self.wrapped
         return self
 
     def __get__(self, obj: object | None, obj_type: type[object] | None = None) -> PydanticDescriptorProxy[ReturnType]:
         try:
-            return self.wrapped.__get__(obj, obj_type)  # pyright: ignore[reportReturnType]
+            return self.wrapped.__get__(obj, obj_type)
         except AttributeError:
             # not a descriptor, e.g. a partial object
             return self.wrapped  # type: ignore[return-value]
@@ -206,9 +190,9 @@ class PydanticDescriptorProxy(Generic[ReturnType]):
         if hasattr(self.wrapped, '__set_name__'):
             self.wrapped.__set_name__(instance, name)  # pyright: ignore[reportFunctionMemberAccess]
 
-    def __getattr__(self, name: str, /) -> Any:
+    def __getattr__(self, __name: str) -> Any:
         """Forward checks for __isabstractmethod__ and such."""
-        return getattr(self.wrapped, name)
+        return getattr(self.wrapped, __name)
 
 
 DecoratorInfoType = TypeVar('DecoratorInfoType', bound=DecoratorInfo)
@@ -510,15 +494,10 @@ class DecoratorInfos:
             # so then we don't need to re-process the type, which means we can discard our descriptor wrappers
             # and replace them with the thing they are wrapping (see the other setattr call below)
             # which allows validator class methods to also function as regular class methods
-            model_dc.__pydantic_decorators__ = res
+            setattr(model_dc, '__pydantic_decorators__', res)
             for name, value in to_replace:
                 setattr(model_dc, name, value)
         return res
-
-    def update_from_config(self, config_wrapper: ConfigWrapper) -> None:
-        """Update the decorator infos from the configuration of the class they are attached to."""
-        for name, computed_field_dec in self.computed_fields.items():
-            computed_field_dec.info._update_from_config(config_wrapper, name)
 
 
 def inspect_validator(validator: Callable[..., Any], mode: FieldValidatorModes) -> bool:
@@ -535,11 +514,12 @@ def inspect_validator(validator: Callable[..., Any], mode: FieldValidatorModes) 
     """
     try:
         sig = signature(validator)
-    except (ValueError, TypeError):
-        # `inspect.signature` might not be able to infer a signature, e.g. with C objects.
-        # In this case, we assume no info argument is present:
+    except ValueError:
+        # builtins and some C extensions don't have signatures
+        # assume that they don't take an info argument and only take a single argument
+        # e.g. `str.strip` or `datetime.datetime`
         return False
-    n_positional = count_positional_required_params(sig)
+    n_positional = count_positional_params(sig)
     if mode == 'wrap':
         if n_positional == 3:
             return True
@@ -558,7 +538,9 @@ def inspect_validator(validator: Callable[..., Any], mode: FieldValidatorModes) 
     )
 
 
-def inspect_field_serializer(serializer: Callable[..., Any], mode: Literal['plain', 'wrap']) -> tuple[bool, bool]:
+def inspect_field_serializer(
+    serializer: Callable[..., Any], mode: Literal['plain', 'wrap'], computed_field: bool = False
+) -> tuple[bool, bool]:
     """Look at a field serializer function and determine if it is a field serializer,
     and whether it takes an info argument.
 
@@ -567,21 +549,18 @@ def inspect_field_serializer(serializer: Callable[..., Any], mode: Literal['plai
     Args:
         serializer: The serializer function to inspect.
         mode: The serializer mode, either 'plain' or 'wrap'.
+        computed_field: When serializer is applied on computed_field. It doesn't require
+            info signature.
 
     Returns:
         Tuple of (is_field_serializer, info_arg).
     """
-    try:
-        sig = signature(serializer)
-    except (ValueError, TypeError):
-        # `inspect.signature` might not be able to infer a signature, e.g. with C objects.
-        # In this case, we assume no info argument is present and this is not a method:
-        return (False, False)
+    sig = signature(serializer)
 
     first = next(iter(sig.parameters.values()), None)
     is_field_serializer = first is not None and first.name == 'self'
 
-    n_positional = count_positional_required_params(sig)
+    n_positional = count_positional_params(sig)
     if is_field_serializer:
         # -1 to correct for self parameter
         info_arg = _serializer_info_arg(mode, n_positional - 1)
@@ -593,8 +572,13 @@ def inspect_field_serializer(serializer: Callable[..., Any], mode: Literal['plai
             f'Unrecognized field_serializer function signature for {serializer} with `mode={mode}`:{sig}',
             code='field-serializer-signature',
         )
+    if info_arg and computed_field:
+        raise PydanticUserError(
+            'field_serializer on computed_field does not use info signature', code='field-serializer-signature'
+        )
 
-    return is_field_serializer, info_arg
+    else:
+        return is_field_serializer, info_arg
 
 
 def inspect_annotated_serializer(serializer: Callable[..., Any], mode: Literal['plain', 'wrap']) -> bool:
@@ -609,13 +593,8 @@ def inspect_annotated_serializer(serializer: Callable[..., Any], mode: Literal['
     Returns:
         info_arg
     """
-    try:
-        sig = signature(serializer)
-    except (ValueError, TypeError):
-        # `inspect.signature` might not be able to infer a signature, e.g. with C objects.
-        # In this case, we assume no info argument is present:
-        return False
-    info_arg = _serializer_info_arg(mode, count_positional_required_params(sig))
+    sig = signature(serializer)
+    info_arg = _serializer_info_arg(mode, count_positional_params(sig))
     if info_arg is None:
         raise PydanticUserError(
             f'Unrecognized field_serializer function signature for {serializer} with `mode={mode}`:{sig}',
@@ -643,7 +622,7 @@ def inspect_model_serializer(serializer: Callable[..., Any], mode: Literal['plai
         )
 
     sig = signature(serializer)
-    info_arg = _serializer_info_arg(mode, count_positional_required_params(sig))
+    info_arg = _serializer_info_arg(mode, count_positional_params(sig))
     if info_arg is None:
         raise PydanticUserError(
             f'Unrecognized model_serializer function signature for {serializer} with `mode={mode}`:{sig}',
@@ -728,25 +707,27 @@ def unwrap_wrapped_function(
     unwrap_class_static_method: bool = True,
 ) -> Any:
     """Recursively unwraps a wrapped function until the underlying function is reached.
-    This handles property, functools.partial, functools.partialmethod, staticmethod, and classmethod.
+    This handles property, functools.partial, functools.partialmethod, staticmethod and classmethod.
 
     Args:
         func: The function to unwrap.
-        unwrap_partial: If True (default), unwrap partial and partialmethod decorators.
+        unwrap_partial: If True (default), unwrap partial and partialmethod decorators, otherwise don't.
+            decorators.
         unwrap_class_static_method: If True (default), also unwrap classmethod and staticmethod
             decorators. If False, only unwrap partial and partialmethod decorators.
 
     Returns:
         The underlying function of the wrapped function.
     """
-    # Define the types we want to check against as a single tuple.
-    unwrap_types = (
-        (property, cached_property)
-        + ((partial, partialmethod) if unwrap_partial else ())
-        + ((staticmethod, classmethod) if unwrap_class_static_method else ())
-    )
+    all: set[Any] = {property, cached_property}
 
-    while isinstance(func, unwrap_types):
+    if unwrap_partial:
+        all.update({partial, partialmethod})
+
+    if unwrap_class_static_method:
+        all.update({staticmethod, classmethod})
+
+    while isinstance(func, tuple(all)):
         if unwrap_class_static_method and isinstance(func, (classmethod, staticmethod)):
             func = func.__func__
         elif isinstance(func, (partial, partialmethod)):
@@ -761,72 +742,38 @@ def unwrap_wrapped_function(
     return func
 
 
-_function_like = (
-    partial,
-    partialmethod,
-    types.FunctionType,
-    types.BuiltinFunctionType,
-    types.MethodType,
-    types.WrapperDescriptorType,
-    types.MethodWrapperType,
-    types.MemberDescriptorType,
-)
+def get_function_return_type(
+    func: Any, explicit_return_type: Any, types_namespace: dict[str, Any] | None = None
+) -> Any:
+    """Get the function return type.
 
-
-def get_callable_return_type(
-    callable_obj: Any,
-    globalns: GlobalsNamespace | None = None,
-    localns: MappingNamespace | None = None,
-) -> Any | PydanticUndefinedType:
-    """Get the callable return type.
+    It gets the return type from the type annotation if `explicit_return_type` is `None`.
+    Otherwise, it returns `explicit_return_type`.
 
     Args:
-        callable_obj: The callable to analyze.
-        globalns: The globals namespace to use during type annotation evaluation.
-        localns: The locals namespace to use during type annotation evaluation.
+        func: The function to get its return type.
+        explicit_return_type: The explicit return type.
+        types_namespace: The types namespace, defaults to `None`.
 
     Returns:
         The function return type.
     """
-    if isinstance(callable_obj, type):
-        # types are callables, and we assume the return type
-        # is the type itself (e.g. `int()` results in an instance of `int`).
-        return callable_obj
-
-    if not isinstance(callable_obj, _function_like):
-        call_func = getattr(type(callable_obj), '__call__', None)  # noqa: B004
-        if call_func is not None:
-            callable_obj = call_func
-
-    hints = get_function_type_hints(
-        unwrap_wrapped_function(callable_obj),
-        include_keys={'return'},
-        globalns=globalns,
-        localns=localns,
-    )
-    return hints.get('return', PydanticUndefined)
+    if explicit_return_type is PydanticUndefined:
+        # try to get it from the type annotation
+        hints = get_function_type_hints(
+            unwrap_wrapped_function(func), include_keys={'return'}, types_namespace=types_namespace
+        )
+        return hints.get('return', PydanticUndefined)
+    else:
+        return explicit_return_type
 
 
-def count_positional_required_params(sig: Signature) -> int:
-    """Get the number of positional (required) arguments of a signature.
+def count_positional_params(sig: Signature) -> int:
+    return sum(1 for param in sig.parameters.values() if can_be_positional(param))
 
-    This function should only be used to inspect signatures of validation and serialization functions.
-    The first argument (the value being serialized or validated) is counted as a required argument
-    even if a default value exists.
 
-    Returns:
-        The number of positional arguments of a signature.
-    """
-    parameters = list(sig.parameters.values())
-    return sum(
-        1
-        for param in parameters
-        if can_be_positional(param)
-        # First argument is the value being validated/serialized, and can have a default value
-        # (e.g. `float`, which has signature `(x=0, /)`). We assume other parameters (the info arg
-        # for instance) should be required, and thus without any default value.
-        and (param.default is Parameter.empty or param is parameters[0])
-    )
+def can_be_positional(param: Parameter) -> bool:
+    return param.kind in (Parameter.POSITIONAL_ONLY, Parameter.POSITIONAL_OR_KEYWORD)
 
 
 def ensure_property(f: Any) -> Any:
